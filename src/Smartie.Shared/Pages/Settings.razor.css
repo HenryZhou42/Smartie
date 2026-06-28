@@ -1,0 +1,229 @@
+.settings-page {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 28px 32px;
+}
+
+.settings-header .edition-badge {
+    display: inline-block;
+    margin: 0 0 8px;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 700;
+    color: #8fb4ff;
+    background: #1a2240;
+    border: 1px solid #34405a;
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+.settings-header h1 {
+    margin: 0 0 6px;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #e6e8ee;
+}
+
+.settings-header p {
+    margin: 0 0 20px;
+    color: #8b91a3;
+    font-size: 0.92rem;
+    max-width: 640px;
+}
+
+.settings-loading {
+    color: #6b7180;
+    padding: 16px 0;
+}
+
+.settings-error {
+    color: #ff8d8d;
+    background: #2a1416;
+    border: 1px solid #4a1f24;
+    padding: 10px 14px;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    font-size: 0.88rem;
+}
+
+.settings-status {
+    color: #8fe3b0;
+    background: #122017;
+    border: 1px solid #1f4a30;
+    padding: 10px 14px;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    font-size: 0.88rem;
+}
+
+.provider-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.provider-card {
+    background: #11141b;
+    border: 1px solid #232733;
+    border-radius: 12px;
+    padding: 16px 18px;
+}
+
+.provider-card.active {
+    border-color: #5a76ff;
+    box-shadow: 0 0 0 1px #5a76ff33;
+}
+
+.provider-card.unavailable {
+    opacity: 0.6;
+}
+
+.provider-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.provider-name {
+    font-weight: 600;
+    color: #e6e8ee;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.badge {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.badge-active {
+    background: #5a76ff;
+    color: #fff;
+}
+
+.badge-soon {
+    background: #2a2f3d;
+    color: #8b91a3;
+}
+
+.btn-use {
+    border: 1px solid #34405a;
+    background: #1b1f2a;
+    color: #c3c8d4;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.btn-use:hover {
+    background: #283042;
+    color: #fff;
+}
+
+.provider-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.provider-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.8rem;
+    color: #8b91a3;
+}
+
+.provider-fields input {
+    background: #0c0e14;
+    border: 1px solid #2a2f3d;
+    border-radius: 8px;
+    padding: 9px 11px;
+    color: #e6e8ee;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.provider-fields input:focus {
+    border-color: #5a76ff;
+}
+
+.btn-save {
+    align-self: flex-start;
+    margin-top: 4px;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 18px;
+    background: linear-gradient(135deg, #5a76ff, #7d5cff);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-save:disabled {
+    background: #262b38;
+    color: #5d6373;
+    cursor: not-allowed;
+}
+
+.provider-note {
+    color: #6b7180;
+    font-size: 0.85rem;
+}
+
+.settings-knowledge {
+    margin-top: 36px;
+    padding-top: 28px;
+    border-top: 1px solid #232733;
+}
+
+.knowledge-settings-card {
+    max-width: 720px;
+}
+
+.knowledge-settings-list {
+    margin: 0 0 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.knowledge-settings-list div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 0.88rem;
+}
+
+.knowledge-settings-list dt {
+    margin: 0;
+    color: #8b91a3;
+}
+
+.knowledge-settings-list dd {
+    margin: 0;
+    color: #e6e8ee;
+    text-align: right;
+    word-break: break-all;
+}
+
+.knowledge-settings-note {
+    margin: 0 0 14px;
+    color: #6b7180;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.settings-developer {
+    margin-top: 28px;
+}

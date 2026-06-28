@@ -1,0 +1,87 @@
+.about-page {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 28px 32px;
+    max-width: 720px;
+}
+
+.about-header .edition-badge {
+    display: inline-block;
+    margin: 0 0 8px;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 700;
+    color: #8fb4ff;
+    background: #1a2240;
+    border: 1px solid #34405a;
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+.about-header h1 {
+    margin: 0 0 8px;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #e6e8ee;
+}
+
+.about-tagline {
+    margin: 0 0 24px;
+    color: #8b91a3;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.about-section {
+    margin-bottom: 24px;
+}
+
+.about-section h2 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #c3c8d4;
+}
+
+.about-section p {
+    margin: 0;
+    color: #8b91a3;
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+
+.about-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #aeb4c2;
+    font-size: 0.92rem;
+    line-height: 1.7;
+}
+
+.about-future {
+    padding: 16px 18px;
+    background: #11141b;
+    border: 1px solid #232733;
+    border-radius: 12px;
+    opacity: 0.85;
+}
+
+.about-cloud-note {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.badge-soon {
+    align-self: flex-start;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-weight: 700;
+    background: #2a2f3d;
+    color: #8b91a3;
+}

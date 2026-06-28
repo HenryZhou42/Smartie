@@ -1,0 +1,1392 @@
+@page "/chat"
+@using System.Text
+@using Smartie.Shared.Models
+@using Smartie.Shared.Rendering
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@inject SmartieApiClient Api
+@inject IDocumentFilePickerService FilePicker
+@inject ISmartieApiEndpointProvider ApiEndpointProvider
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Smartie · Chat</PageTitle>
+
+<div class="chat-layout @(_conversationsDrawerOpen ? "conversations-open" : null)">
+    @if (_conversationsDrawerOpen)
+    {
+        <button type="button" class="conversations-backdrop" aria-label="Close conversations"
+                @onclick="CloseConversationsDrawer"></button>
+    }
+
+    <aside class="conversation-pane smartie-panel">
+        <div class="conversation-header">
+            <span>Conversations</span>
+            <button class="new-chat-btn" @onclick="NewConversationAsync" title="New chat"
+                    disabled="@IsGenerating">+</button>
+        </div>
+        <div class="conversation-search-wrap">
+            <input class="conversation-search" type="search" placeholder="Search conversations…"
+                   @bind="_conversationSearch" @bind:event="oninput"
+                   disabled="@IsGenerating" />
+        </div>
+        <div class="conversation-list chat-scroll">
+            @if (_conversations.Count == 0)
+            {
+                <div class="conversation-empty">No conversations yet.</div>
+            }
+            else if (!PinnedConversations.Any() && !RecentConversations.Any())
+            {
+                <div class="conversation-empty">No matches.</div>
+            }
+            else
+            {
+                @if (PinnedConversations.Any())
+                {
+                    <div class="conversation-section-label">Pinned</div>
+                    @foreach (var c in PinnedConversations)
+                    {
+                        @RenderConversationItem(c)
+                    }
+                }
+                @if (RecentConversations.Any())
+                {
+                    <div class="conversation-section-label">Recent</div>
+                    @foreach (var c in RecentConversations)
+                    {
+                        @RenderConversationItem(c)
+                    }
+                }
+            }
+        </div>
+    </aside>
+
+    <section class="thread-pane" id="chat-drop-zone">
+        <div class="chat-drop-overlay" aria-hidden="true">
+            <div class="chat-drop-card">
+                <p class="chat-drop-title">Drop files to attach to this chat</p>
+                <p class="chat-drop-subtitle">PDF, DOCX, TXT, Markdown</p>
+            </div>
+        </div>
+        <header class="thread-header">
+            <button type="button" class="conversations-toggle" title="Conversations"
+                    aria-label="Show conversations" @onclick="ToggleConversationsDrawer">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
+            </button>
+            <div class="thread-header-main">
+                <h1>@(_selected?.Title ?? "Chat")</h1>
+                @if (_selectedId is not null)
+                {
+                    <div class="thread-header-meta">
+                        @if (!string.IsNullOrEmpty(_providerLabel))
+                        {
+                            <span class="thread-meta-item">@_providerLabel</span>
+                        }
+                        @if (_selected is not null)
+                        {
+                            <span class="thread-meta-item">Updated @FormatRelativeTime(_selected.UpdatedAt)</span>
+                        }
+                        @if (IsGenerating)
+                        {
+                            <span class="thread-meta-item generating">Generating…</span>
+                        }
+                    </div>
+                }
+            </div>
+            @if (_selectedId is not null)
+            {
+                <div class="thread-header-actions">
+                    <button class="header-action-btn" title="@(_selected?.IsPinned == true ? "Unpin" : "Pin")"
+                            disabled="@IsGenerating"
+                            @onclick="() => _selected is not null ? TogglePinAsync(_selected) : Task.CompletedTask">
+                        &#128204;
+                    </button>
+                    <button class="header-action-btn danger" title="Delete conversation"
+                            disabled="@IsGenerating"
+                            @onclick="() => DeleteConversationAsync(_selectedId!.Value)">
+                        &times;
+                    </button>
+                </div>
+            }
+        </header>
+
+        @if (_needsProviderSetup)
+        {
+            <div class="setup-banner">
+                <span>Set up an AI provider in <NavLink href="settings">Settings</NavLink> to start chatting.</span>
+            </div>
+        }
+
+        <div class="thread-messages-host">
+            <div id="chat-scroll-container" class="chat-scroll-container chat-scroll">
+                <div class="chat-content">
+            @if (_selectedId is null)
+            {
+                <div class="thread-placeholder">
+                    <h2>Welcome to Smartie</h2>
+                    <p>Community Edition — local-first, bring your own AI.</p>
+                    @if (_needsProviderSetup)
+                    {
+                        <p>Open <NavLink href="settings">Settings</NavLink>, choose a provider, and save your API key (or point Ollama at a local model).</p>
+                    }
+                    else
+                    {
+                        <p>Start a new conversation to chat with your assistant.</p>
+                    }
+                </div>
+            }
+            else
+            {
+                @foreach (var m in _messages)
+                {
+                    <div class="bubble-row @(m.Role == "user" ? "from-user" : "from-assistant")">
+                        @if (m.Role == "user" && _editingMessageId != m.Id)
+                        {
+                            <div class="user-message-wrap user-message">
+                                <div class="bubble user-bubble">
+                                    <div class="user-text">@m.Content</div>
+                                    @if (m.Attachments is { Count: > 0 })
+                                    {
+                                        <div class="message-attachments">
+                                            <span class="message-attachments-label">Attachments:</span>
+                                            @foreach (var attachment in m.Attachments)
+                                            {
+                                                <span class="message-attachment-chip">
+                                                    <span class="message-attachment-icon">@GetAttachmentIcon(attachment.Extension)</span>
+                                                    @attachment.Name
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                    @if (m.IsEdited)
+                                    {
+                                        <span class="edited-label">edited</span>
+                                    }
+                                </div>
+                                @if (!IsGenerating)
+                                {
+                                    <button type="button" class="message-action-btn" title="Edit message"
+                                            @onclick="() => BeginEditMessage(m)">Edit</button>
+                                }
+                            </div>
+                        }
+                        else if (m.Role == "assistant" && _editingMessageId != m.Id)
+                        {
+                            <div class="assistant-message-wrap assistant-message">
+                                <div class="bubble assistant-bubble">
+                                    <div class="markdown-body">
+                                        @((MarkupString)MarkdownRenderer.ToHtml(m.Content))
+                                    </div>
+                                    @if (string.Equals(m.Status, "stopped", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <div class="message-stopped">Generation stopped</div>
+                                    }
+                                </div>
+                                @if (!IsGenerating)
+                                {
+                                    <button type="button" class="message-action-btn" title="Copy response"
+                                            @onclick="() => CopyMessageAsync(m.Content)">Copy</button>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="user-message-wrap user-message">
+                                <div class="bubble user-bubble">
+                                    <textarea class="message-edit-input" @bind="_editMessageText" @bind:event="oninput"
+                                              @onkeydown="(e) => HandleEditKeyDownAsync(e, m.Id)"
+                                              @ref="_editMessageInput"></textarea>
+                                    <div class="message-edit-actions">
+                                        <button type="button" class="edit-cancel-btn" @onclick="CancelEditMessage">Cancel</button>
+                                        <button type="button" class="edit-save-btn" @onclick="() => SaveEditMessageAsync(m.Id)">Save</button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (IsGenerating)
+                {
+                    <div class="bubble-row from-assistant">
+                        <div class="assistant-message-wrap assistant-message">
+                            <div class="bubble assistant-bubble streaming-bubble">
+                                @if (string.IsNullOrEmpty(_visibleStreamingText))
+                                {
+                                    <span class="typing"><span></span><span></span><span></span></span>
+                                }
+                                else
+                                {
+                                    <div class="markdown-body streaming-markdown">
+                                        @((MarkupString)MarkdownRenderer.ToHtml(_visibleStreamingText))
+                                    </div>
+                                    <span class="streaming-cursor" aria-hidden="true">▋</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (_error is not null)
+            {
+                <div class="thread-error">@_error</div>
+            }
+            </div>
+            </div>
+            @if (!IsNearBottom)
+            {
+                <button type="button"
+                        class="jump-to-latest"
+                        aria-label="Jump to latest"
+                        title="Jump to latest"
+                        @onclick="JumpToLatestAsync">
+                    <svg class="jump-to-latest-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"
+                              stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            }
+        </div>
+
+        <footer class="composer">
+            <div class="composer-inner chat-content">
+                @if (!string.IsNullOrEmpty(_providerLabel))
+                {
+                    <div class="composer-provider">@_providerLabel</div>
+                }
+                @if (_pendingAttachments.Count > 0 || _attachmentUploading)
+                {
+                    <div class="composer-attachments">
+                        @foreach (var attachment in _pendingAttachments)
+                        {
+                            <span class="composer-attachment-chip @(attachment.Error is not null ? "has-error" : null)">
+                                <span class="composer-attachment-icon">@GetAttachmentIcon(attachment.Extension)</span>
+                                <span class="composer-attachment-text">
+                                    <span class="composer-attachment-name">@attachment.FileName</span>
+                                    <span class="composer-attachment-meta">
+                                        @FormatAttachmentBytes(attachment.SizeBytes)
+                                        <span class="composer-attachment-badge">@attachment.SourceLabel</span>
+                                    </span>
+                                </span>
+                                @if (attachment.IsUploading)
+                                {
+                                    <span class="composer-attachment-status">Uploading…</span>
+                                }
+                                else if (!string.IsNullOrEmpty(attachment.Error))
+                                {
+                                    <span class="composer-attachment-status error">@attachment.Error</span>
+                                }
+                                <button type="button" class="composer-attachment-remove"
+                                        title="Remove @attachment.FileName"
+                                        disabled="@(IsGenerating || attachment.IsUploading)"
+                                        @onclick="() => RemovePendingAttachmentAsync(attachment)">&times;</button>
+                            </span>
+                        }
+                    </div>
+                }
+                <div class="composer-row">
+                    <div class="attach-menu-wrap">
+                        <button type="button" class="attach-btn" title="Attach files"
+                                disabled="@IsGenerating"
+                                @onclick="ToggleAttachMenu">📎</button>
+                        @if (_showAttachMenu)
+                        {
+                            <div class="attach-menu" @onclick:stopPropagation="true">
+                                <button type="button" class="attach-menu-item" @onclick="UploadFromComputerAsync">
+                                    Upload from computer
+                                </button>
+                                <button type="button" class="attach-menu-item" @onclick="OpenKnowledgeBaseAttach">
+                                    Attach from Knowledge Base
+                                </button>
+                            </div>
+                        }
+                    </div>
+                    <textarea class="composer-input" @bind="_input" @bind:event="oninput"
+                              @onkeydown="HandleKeyDownAsync" placeholder="Message Smartie…"
+                              rows="1" disabled="@IsGenerating"></textarea>
+                    @if (IsGenerating)
+                    {
+                        <button class="stop-btn" @onclick="StopGenerating" title="Stop generating">Stop</button>
+                    }
+                    else
+                    {
+                        <button class="send-btn" @onclick="SendAsync"
+                                disabled="@(IsGenerating || string.IsNullOrWhiteSpace(_input))">
+                            Send
+                        </button>
+                    }
+                </div>
+                <div class="composer-hint">Enter to send · Shift+Enter for new line</div>
+            </div>
+        </footer>
+    </section>
+</div>
+
+@if (!FilePicker.IsNativePickerAvailable)
+{
+    <InputFile id="chat-upload-input"
+               OnChange="OnChatFilesSelectedAsync"
+               multiple
+               accept=".pdf,.docx,.txt,.md,.markdown"
+               class="hidden-file-input"
+               disabled="@(_attachmentUploading || IsGenerating)" />
+}
+
+<div class="chat-click-catcher @(_showAttachMenu ? "active" : null)" @onclick="CloseAttachMenu"></div>
+
+<ConfirmDialog IsVisible="_showEditConfirmDialog"
+               Title="Edit message?"
+               Body="Editing this message will remove all replies after it and generate a new response. Do you want to continue?"
+               ConfirmText="Continue"
+               CancelText="Cancel"
+               OnConfirm="ConfirmEditMessageAsync"
+               OnCancel="CancelEditConfirmDialog" />
+
+<DocumentAttachModal IsVisible="_showAttachModal"
+                     AlreadyAttachedIds="_pendingAttachments.Where(a => a.DocumentId is not null).Select(a => a.DocumentId!.Value).ToList()"
+                     OnCancel="CloseAttachModal"
+                     OnAttach="ConfirmAttachDocumentsAsync" />
+
+@code {
+    private const string ChatScrollContainerId = "chat-scroll-container";
+    private const string ChatDropZoneId = "chat-drop-zone";
+    private const int ScrollThresholdPx = 100;
+    private const long DefaultMaxAttachmentBytes = 52_428_800;
+    private static readonly string[] SupportedAttachmentExtensions = [".pdf", ".docx", ".txt", ".md", ".markdown"];
+
+    private List<ConversationDto> _conversations = new();
+    private List<MessageDto> _messages = new();
+    private Guid? _selectedId;
+    private ConversationDto? _selected;
+    private string _input = string.Empty;
+    private string _conversationSearch = string.Empty;
+    private string _visibleStreamingText = string.Empty;
+    private readonly Queue<char> _typingQueue = new();
+    private bool _providerStreamEnded = true;
+    private bool _isTypingRendererRunning;
+
+    private const int TypingTickDelayMs = 45;
+    private const int TypingIdlePollMs = 45;
+    private const int TypingFlushTickDelayMs = 28;
+    private const int TypingBacklogMediumThreshold = 150;
+    private const int TypingBacklogLargeThreshold = 400;
+    private const int TypingCharsNormal = 1;
+    private const int TypingCharsMediumBacklog = 2;
+    private const int TypingCharsLargeBacklog = 3;
+    private const int TypingCharsFlush = 8;
+
+    private bool _isGenerating;
+    private bool IsGenerating => _isGenerating;
+    private string? _error;
+    private string? _providerLabel;
+
+    private Guid? _editingMessageId;
+    private string _editMessageText = string.Empty;
+    private ElementReference _editMessageInput;
+    private bool _focusEditMessageInput;
+    private CancellationTokenSource? _streamCts;
+    private bool _needsProviderSetup;
+    private bool _conversationsDrawerOpen;
+    private bool _isAutoScrollEnabled = true;
+
+    private bool IsNearBottom => _isAutoScrollEnabled;
+
+    private bool _scrollInitialized;
+    private DotNetObjectReference<Chat>? _dotNetRef;
+    private bool _showEditConfirmDialog;
+    private Guid? _pendingEditMessageId;
+    private string _pendingEditText = string.Empty;
+    private bool _showAttachModal;
+    private bool _showAttachMenu;
+    private bool _attachmentUploading;
+    private bool _chatDropInitialized;
+    private List<PendingChatAttachment> _pendingAttachments = new();
+
+    private IEnumerable<ConversationDto> FilteredConversations =>
+        string.IsNullOrWhiteSpace(_conversationSearch)
+            ? _conversations
+            : _conversations.Where(c =>
+                c.Title.Contains(_conversationSearch, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<ConversationDto> PinnedConversations =>
+        FilteredConversations.Where(c => c.IsPinned);
+
+    private IEnumerable<ConversationDto> RecentConversations =>
+        FilteredConversations.Where(c => !c.IsPinned);
+
+    [SupplyParameterFromQuery(Name = "c")]
+    public Guid? OpenConversationId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckProviderSetupAsync();
+        await LoadConversationsAsync();
+
+        if (OpenConversationId is { } openId && _conversations.Any(c => c.Id == openId))
+        {
+            await SelectConversationAsync(openId);
+        }
+        else if (_conversations.Count > 0)
+        {
+            await SelectConversationAsync(_conversations[0].Id);
+        }
+    }
+
+    private RenderFragment RenderConversationItem(ConversationDto c) => __builder =>
+    {
+        <div class="conversation-item @(c.Id == _selectedId ? "selected" : string.Empty) @(IsGenerating ? "locked" : string.Empty)">
+            <button class="conversation-select" @onclick="() => SelectConversationAsync(c.Id)"
+                    disabled="@IsGenerating">
+                @if (c.IsPinned)
+                {
+                    <span class="pin-indicator" title="Pinned">&#128204;</span>
+                }
+                <span class="conversation-title">@c.Title</span>
+            </button>
+            <button class="conversation-pin" title="@(c.IsPinned ? "Unpin conversation" : "Pin conversation")"
+                    @onclick="() => TogglePinAsync(c)">&#128204;</button>
+            <button class="conversation-delete" title="Delete conversation"
+                    @onclick="() => DeleteConversationAsync(c.Id)">&times;</button>
+        </div>
+    };
+
+    private async Task CheckProviderSetupAsync()
+    {
+        try
+        {
+            var settings = await Api.GetAiSettingsAsync();
+            var active = settings.Providers.FirstOrDefault(p =>
+                string.Equals(p.Provider, settings.SelectedProvider, StringComparison.OrdinalIgnoreCase));
+            if (active is not null)
+            {
+                _providerLabel = $"{active.DisplayName} · {active.ChatModel}";
+                _needsProviderSetup = active.RequiresApiKey && !active.HasApiKey;
+            }
+            else
+            {
+                _providerLabel = null;
+                _needsProviderSetup = false;
+            }
+        }
+        catch
+        {
+            _providerLabel = null;
+            _needsProviderSetup = false;
+        }
+    }
+
+    private async Task LoadConversationsAsync()
+    {
+        try
+        {
+            _conversations = (await Api.GetConversationsAsync()).ToList();
+            _selected = _conversations.FirstOrDefault(c => c.Id == _selectedId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not reach the Smartie API: {ex.Message}";
+        }
+    }
+
+    private async Task SelectConversationAsync(Guid id)
+    {
+        if (IsGenerating)
+        {
+            return;
+        }
+
+        CancelEditMessage();
+        _conversationsDrawerOpen = false;
+        _pendingAttachments.Clear();
+        _showAttachMenu = false;
+        _showAttachModal = false;
+        _selectedId = id;
+        _selected = _conversations.FirstOrDefault(c => c.Id == id);
+        _error = null;
+        try
+        {
+            _messages = (await Api.GetMessagesAsync(id)).ToList();
+            await SyncChatDropZoneAsync();
+            EnableAutoScroll();
+            await ScrollAfterUpdateAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task NewConversationAsync()
+    {
+        if (IsGenerating)
+        {
+            return;
+        }
+
+        try
+        {
+            var created = await Api.CreateConversationAsync();
+            _conversations.Insert(0, created);
+            _messages = new();
+            _selectedId = created.Id;
+            _selected = created;
+            _error = null;
+            CancelEditMessage();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task TogglePinAsync(ConversationDto conversation)
+    {
+        if (IsGenerating)
+        {
+            return;
+        }
+
+        try
+        {
+            var newPinned = !conversation.IsPinned;
+            await Api.SetConversationPinnedAsync(conversation.Id, newPinned);
+            await LoadConversationsAsync();
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not update pin: {ex.Message}";
+        }
+    }
+
+    private void ToggleConversationsDrawer() =>
+        _conversationsDrawerOpen = !_conversationsDrawerOpen;
+
+    private void CloseConversationsDrawer() =>
+        _conversationsDrawerOpen = false;
+
+    private async Task CopyMessageAsync(string content)
+    {
+        try
+        {
+            await JS.InvokeAsync<bool>("smartieChat.copyText", content);
+        }
+        catch
+        {
+            // Clipboard may be unavailable.
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_scrollInitialized)
+        {
+            try
+            {
+                _dotNetRef ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync(
+                    "smartieChatScroll.initialize",
+                    ChatScrollContainerId,
+                    _dotNetRef,
+                    ScrollThresholdPx);
+                _scrollInitialized = true;
+            }
+            catch
+            {
+                // Script may not be loaded yet; retry on next render.
+            }
+        }
+
+        if (!_chatDropInitialized && _scrollInitialized)
+        {
+            try
+            {
+                _dotNetRef ??= DotNetObjectReference.Create(this);
+                var baseAddress = await ApiEndpointProvider.GetBaseAddressAsync();
+                await JS.InvokeVoidAsync(
+                    "smartieChatDrop.init",
+                    ChatDropZoneId,
+                    _dotNetRef,
+                    new
+                    {
+                        allowedExtensions = SupportedAttachmentExtensions,
+                        maxFileSizeBytes = DefaultMaxAttachmentBytes,
+                        conversationId = _selectedId?.ToString(),
+                        apiBaseUrl = baseAddress.ToString().TrimEnd('/')
+                    });
+                _chatDropInitialized = true;
+            }
+            catch
+            {
+                // Script may not be loaded yet; retry on next render.
+            }
+        }
+
+        if (_focusEditMessageInput)
+        {
+            _focusEditMessageInput = false;
+            try
+            {
+                await _editMessageInput.FocusAsync();
+            }
+            catch
+            {
+                // Element may already be gone; ignore.
+            }
+        }
+    }
+
+    [JSInvokable]
+    public Task OnChatScrollChanged(bool isNearBottom)
+    {
+        var wasNearBottom = _isAutoScrollEnabled;
+        _isAutoScrollEnabled = isNearBottom;
+
+        if (wasNearBottom != isNearBottom)
+        {
+            return InvokeAsync(StateHasChanged);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private bool ShouldAutoScroll() => _isAutoScrollEnabled;
+
+    private async Task ScrollToBottomJsAsync(bool smooth = false)
+    {
+        if (!ShouldAutoScroll())
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "smartieChatScroll.scrollToBottom",
+                ChatScrollContainerId,
+                smooth);
+        }
+        catch
+        {
+            // JS may not be loaded yet; ignore.
+        }
+    }
+
+    private async Task ScrollAfterUpdateAsync(bool smooth = false)
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+        await ScrollToBottomJsAsync(smooth);
+    }
+
+    private async Task JumpToLatestAsync()
+    {
+        _isAutoScrollEnabled = true;
+        await InvokeAsync(StateHasChanged);
+        await ScrollAfterUpdateAsync(smooth: true);
+    }
+
+    private void EnableAutoScroll() => _isAutoScrollEnabled = true;
+
+    private void EnqueueTypingChunk(string chunk)
+    {
+        foreach (var c in chunk)
+        {
+            _typingQueue.Enqueue(c);
+        }
+    }
+
+    private async Task RunTypingRendererAsync(CancellationToken cancellationToken)
+    {
+        if (_isTypingRendererRunning)
+        {
+            return;
+        }
+
+        _isTypingRendererRunning = true;
+
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var hasBuffered = _typingQueue.Count > 0;
+                if (!hasBuffered && _providerStreamEnded)
+                {
+                    break;
+                }
+
+                if (!hasBuffered)
+                {
+                    await Task.Delay(TypingIdlePollMs, cancellationToken);
+                    continue;
+                }
+
+                var backlog = _typingQueue.Count;
+                var charsToTake = ResolveTypingCharsPerTick(backlog);
+
+                var builder = new StringBuilder(_visibleStreamingText, _visibleStreamingText.Length + charsToTake);
+                for (var i = 0; i < charsToTake && _typingQueue.Count > 0; i++)
+                {
+                    builder.Append(_typingQueue.Dequeue());
+                }
+
+                _visibleStreamingText = builder.ToString();
+
+                await InvokeAsync(StateHasChanged);
+                await Task.Yield();
+                await ScrollToBottomJsAsync();
+
+                var delayMs = _providerStreamEnded ? TypingFlushTickDelayMs : TypingTickDelayMs;
+                await Task.Delay(delayMs, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Stop requested; keep partial visible text.
+        }
+        finally
+        {
+            _isTypingRendererRunning = false;
+        }
+    }
+
+    private int ResolveTypingCharsPerTick(int backlog)
+    {
+        if (_providerStreamEnded)
+        {
+            return Math.Min(TypingCharsFlush, backlog);
+        }
+
+        if (backlog > TypingBacklogLargeThreshold)
+        {
+            return TypingCharsLargeBacklog;
+        }
+
+        if (backlog > TypingBacklogMediumThreshold)
+        {
+            return TypingCharsMediumBacklog;
+        }
+
+        return TypingCharsNormal;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_chatDropInitialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("smartieChatDrop.dispose", ChatDropZoneId);
+            }
+            catch
+            {
+            }
+        }
+
+        if (_scrollInitialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("smartieChatScroll.dispose", ChatScrollContainerId);
+            }
+            catch
+            {
+                // Best-effort cleanup.
+            }
+        }
+
+        _dotNetRef?.Dispose();
+    }
+
+    private void BeginEditMessage(MessageDto message)
+    {
+        if (IsGenerating)
+        {
+            return;
+        }
+
+        _editingMessageId = message.Id;
+        _editMessageText = message.Content;
+        _focusEditMessageInput = true;
+    }
+
+    private void CancelEditMessage()
+    {
+        CancelEditConfirmDialog();
+        _editingMessageId = null;
+        _editMessageText = string.Empty;
+    }
+
+    private async Task HandleEditKeyDownAsync(KeyboardEventArgs e, Guid messageId)
+    {
+        if (e.Key == "Escape")
+        {
+            CancelEditMessage();
+        }
+        else if (e.Key == "Enter" && e.CtrlKey)
+        {
+            await SaveEditMessageAsync(messageId);
+        }
+    }
+
+    private async Task SaveEditMessageAsync(Guid messageId)
+    {
+        if (IsGenerating || _editingMessageId != messageId || _selectedId is null)
+        {
+            return;
+        }
+
+        var text = _editMessageText.Trim();
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        var index = _messages.FindIndex(m => m.Id == messageId);
+        if (index < 0)
+        {
+            return;
+        }
+
+        var original = _messages[index];
+        if (string.Equals(original.Content, text, StringComparison.Ordinal))
+        {
+            CancelEditMessage();
+            return;
+        }
+
+        if (index < _messages.Count - 1)
+        {
+            _pendingEditMessageId = messageId;
+            _pendingEditText = text;
+            _showEditConfirmDialog = true;
+            return;
+        }
+
+        await CompleteEditMessageAsync(messageId, text);
+    }
+
+    private void CancelEditConfirmDialog()
+    {
+        _showEditConfirmDialog = false;
+        _pendingEditMessageId = null;
+        _pendingEditText = string.Empty;
+    }
+
+    private async Task ConfirmEditMessageAsync()
+    {
+        _showEditConfirmDialog = false;
+
+        if (_pendingEditMessageId is not Guid messageId || string.IsNullOrWhiteSpace(_pendingEditText))
+        {
+            _pendingEditMessageId = null;
+            _pendingEditText = string.Empty;
+            return;
+        }
+
+        var text = _pendingEditText;
+        _pendingEditMessageId = null;
+        _pendingEditText = string.Empty;
+        await CompleteEditMessageAsync(messageId, text);
+    }
+
+    private async Task CompleteEditMessageAsync(Guid messageId, string text)
+    {
+        CancelEditMessage();
+        _error = null;
+        EnableAutoScroll();
+
+        var conversationId = _selectedId!.Value;
+
+        ApplyEditedMessageLocally(messageId, text);
+        await ScrollAfterUpdateAsync();
+
+        try
+        {
+            _messages = (await Api.EditMessageAsync(conversationId, messageId, text)).ToList();
+            await ScrollAfterUpdateAsync();
+
+            await RunStreamingGenerationAsync(
+                ct => Api.StreamRegenerateAsync(conversationId, ct),
+                conversationId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not edit message: {ex.Message}";
+            try
+            {
+                _messages = (await Api.GetMessagesAsync(conversationId)).ToList();
+            }
+            catch
+            {
+                // Keep optimistic UI if reload fails.
+            }
+
+            await ScrollAfterUpdateAsync();
+        }
+    }
+
+    private void ApplyEditedMessageLocally(Guid messageId, string text)
+    {
+        var index = _messages.FindIndex(m => m.Id == messageId);
+        if (index < 0)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        _messages = _messages.Take(index + 1).ToList();
+        _messages[index] = _messages[index] with
+        {
+            Content = text,
+            IsEdited = true,
+            EditedAt = now,
+            UpdatedAt = now
+        };
+    }
+
+    private void StopGenerating() => _streamCts?.Cancel();
+
+    private async Task DeleteConversationAsync(Guid id)
+    {
+        if (IsGenerating)
+        {
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            "Delete this conversation? This cannot be undone.");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        try
+        {
+            await Api.DeleteConversationAsync(id);
+            _conversations.RemoveAll(c => c.Id == id);
+            _error = null;
+
+            if (_selectedId == id)
+            {
+                _selectedId = null;
+                _selected = null;
+                _messages = new();
+                CancelEditMessage();
+
+                if (_conversations.Count > 0)
+                {
+                    await SelectConversationAsync(_conversations[0].Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not delete conversation: {ex.Message}";
+        }
+    }
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (IsGenerating || _editingMessageId is not null)
+        {
+            return;
+        }
+
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendAsync();
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        if (IsGenerating)
+        {
+            return;
+        }
+
+        var text = _input.Trim();
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        _error = null;
+        _input = string.Empty;
+        CancelEditMessage();
+
+        if (_selectedId is null)
+        {
+            await NewConversationAsync();
+            if (_selectedId is null)
+            {
+                return;
+            }
+        }
+
+        var conversationId = _selectedId.Value;
+        EnableAutoScroll();
+
+        var attachmentDtos = _pendingAttachments
+            .Where(a => a.Error is null && !a.IsUploading)
+            .Select(ToMessageAttachmentDto)
+            .ToList();
+        var documentIds = _pendingAttachments
+            .Where(a => a.DocumentId is not null && a.Error is null && !a.IsUploading)
+            .Select(a => a.DocumentId!.Value)
+            .ToList();
+        var stagingIds = _pendingAttachments
+            .Where(a => a.StagingId is not null && a.Error is null && !a.IsUploading)
+            .Select(a => a.StagingId!.Value)
+            .ToList();
+
+        _messages.Add(new MessageDto(
+            Guid.NewGuid(),
+            "user",
+            text,
+            DateTimeOffset.UtcNow,
+            Attachments: attachmentDtos));
+        _pendingAttachments.Clear();
+        await SyncChatDropZoneAsync();
+        await ScrollAfterUpdateAsync();
+
+        await RunStreamingGenerationAsync(
+            ct => Api.StreamMessageAsync(conversationId, text, documentIds, stagingIds, ct),
+            conversationId);
+    }
+
+    private static MessageAttachmentDto ToMessageAttachmentDto(PendingChatAttachment attachment) =>
+        new(
+            attachment.StagingId ?? attachment.DocumentId ?? Guid.Empty,
+            attachment.DocumentId,
+            attachment.Name,
+            attachment.FileName,
+            attachment.Extension,
+            attachment.SizeBytes,
+            attachment.IsKnowledgeBase ? "KnowledgeBase" : "LocalUpload",
+            attachment.SourceLabel);
+
+    private void ToggleAttachMenu()
+    {
+        if (IsGenerating)
+        {
+            return;
+        }
+
+        _showAttachMenu = !_showAttachMenu;
+    }
+
+    private void CloseAttachMenu() => _showAttachMenu = false;
+
+    private async Task UploadFromComputerAsync()
+    {
+        CloseAttachMenu();
+        if (IsGenerating || _attachmentUploading)
+        {
+            return;
+        }
+
+        if (FilePicker.IsNativePickerAvailable)
+        {
+            var picked = await FilePicker.PickFilesAsync(SupportedAttachmentExtensions);
+            if (picked.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                foreach (var file in picked)
+                {
+                    await StageLocalFileAsync(file.FileName, file.Content);
+                    await file.DisposeAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _error = ex.Message;
+            }
+
+            return;
+        }
+
+        await JS.InvokeVoidAsync("smartieChat.clickFileInput", "chat-upload-input");
+    }
+
+    private async Task OnChatFilesSelectedAsync(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles(20))
+        {
+            await using var stream = file.OpenReadStream(maxAllowedSize: DefaultMaxAttachmentBytes);
+            await StageLocalFileAsync(file.Name, stream);
+        }
+    }
+
+    private async Task StageLocalFileAsync(string fileName, Stream content)
+    {
+        var conversationId = await EnsureConversationForAttachmentsAsync();
+        _attachmentUploading = true;
+        _error = null;
+
+        var pending = new PendingChatAttachment
+        {
+            Key = $"pending-{Guid.NewGuid():N}",
+            Name = Path.GetFileNameWithoutExtension(fileName),
+            FileName = fileName,
+            Extension = Path.GetExtension(fileName).TrimStart('.'),
+            SizeBytes = content.CanSeek ? content.Length : 0,
+            SourceLabel = "Local Upload",
+            IsUploading = true
+        };
+        _pendingAttachments.Add(pending);
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var staged = await Api.StageChatAttachmentAsync(conversationId, content, fileName);
+            pending.IsUploading = false;
+            pending.StagingId = staged.StagingId;
+            pending.FileName = staged.FileName;
+            pending.Extension = staged.Extension;
+            pending.SizeBytes = staged.SizeBytes;
+            pending.Key = $"local-{staged.StagingId}";
+        }
+        catch (Exception ex)
+        {
+            pending.IsUploading = false;
+            pending.Error = ex.Message;
+        }
+        finally
+        {
+            _attachmentUploading = false;
+            await SyncChatDropZoneAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task<Guid> EnsureConversationForAttachmentsAsync()
+    {
+        if (_selectedId is Guid existing)
+        {
+            return existing;
+        }
+
+        await NewConversationAsync();
+        if (_selectedId is not Guid created)
+        {
+            throw new InvalidOperationException("Could not create a conversation for attachments.");
+        }
+
+        await SyncChatDropZoneAsync();
+        return created;
+    }
+
+    private void OpenKnowledgeBaseAttach()
+    {
+        CloseAttachMenu();
+        OpenAttachModal();
+    }
+
+    private void OpenAttachModal()
+    {
+        if (IsGenerating)
+        {
+            return;
+        }
+
+        _showAttachModal = true;
+    }
+
+    private void CloseAttachModal()
+    {
+        _showAttachModal = false;
+    }
+
+    private Task ConfirmAttachDocumentsAsync(IReadOnlyList<DocumentDto> documents)
+    {
+        foreach (var doc in documents)
+        {
+            if (_pendingAttachments.All(a => a.DocumentId != doc.Id))
+            {
+                _pendingAttachments.Add(PendingChatAttachment.FromKnowledgeBase(doc));
+            }
+        }
+
+        _showAttachModal = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task RemovePendingAttachmentAsync(PendingChatAttachment attachment)
+    {
+        if (attachment.StagingId is Guid stagingId && _selectedId is Guid conversationId)
+        {
+            try
+            {
+                await Api.DeleteStagingChatAttachmentAsync(conversationId, stagingId);
+            }
+            catch
+            {
+                // Best-effort cleanup.
+            }
+        }
+
+        _pendingAttachments.RemoveAll(a => a.Key == attachment.Key);
+    }
+
+    [JSInvokable]
+    public async Task HandleStagedAttachmentAsync(StagingChatAttachmentDto staged)
+    {
+        if (_pendingAttachments.Any(a => a.StagingId == staged.StagingId))
+        {
+            return;
+        }
+
+        _pendingAttachments.Add(PendingChatAttachment.FromStaging(staged));
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task HandleDropErrorAsync(string message)
+    {
+        _error = message;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SyncChatDropZoneAsync()
+    {
+        if (!_chatDropInitialized)
+        {
+            return;
+        }
+
+        var baseAddress = await ApiEndpointProvider.GetBaseAddressAsync();
+        await JS.InvokeVoidAsync(
+            "smartieChatDrop.updateOptions",
+            ChatDropZoneId,
+            new
+            {
+                allowedExtensions = SupportedAttachmentExtensions,
+                maxFileSizeBytes = DefaultMaxAttachmentBytes,
+                conversationId = _selectedId?.ToString(),
+                apiBaseUrl = baseAddress.ToString().TrimEnd('/')
+            });
+    }
+
+    private static string GetAttachmentIcon(string extension) =>
+        extension.ToLowerInvariant() switch
+        {
+            "md" or "markdown" => "📝",
+            "pdf" => "📄",
+            "docx" => "📄",
+            "txt" => "📄",
+            _ => "📄"
+        };
+
+    private static string FormatAttachmentBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+
+    private async Task RunStreamingGenerationAsync(
+        Func<CancellationToken, IAsyncEnumerable<string>> streamFactory,
+        Guid conversationId)
+    {
+        _isGenerating = true;
+        _providerStreamEnded = false;
+        _visibleStreamingText = string.Empty;
+        _typingQueue.Clear();
+        _streamCts = new CancellationTokenSource();
+
+        var typistTask = RunTypingRendererAsync(_streamCts.Token);
+        await ScrollAfterUpdateAsync();
+
+        try
+        {
+            await foreach (var delta in streamFactory(_streamCts.Token))
+            {
+                EnqueueTypingChunk(delta);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // User clicked Stop; partial reply is persisted server-side.
+        }
+        catch (Exception ex)
+        {
+            _error = $"The assistant could not respond: {ex.Message}";
+        }
+        finally
+        {
+            _providerStreamEnded = true;
+        }
+
+        try
+        {
+            await typistTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // Typist stopped with the stream.
+        }
+
+        _isGenerating = false;
+        _visibleStreamingText = string.Empty;
+        _typingQueue.Clear();
+        _streamCts?.Dispose();
+        _streamCts = null;
+
+        try
+        {
+            _messages = (await Api.GetMessagesAsync(conversationId)).ToList();
+        }
+        catch
+        {
+            // Keep optimistic UI if reload fails.
+        }
+
+        await ScrollAfterUpdateAsync();
+        await LoadConversationsAsync();
+        await CheckProviderSetupAsync();
+    }
+
+    private static string FormatRelativeTime(DateTimeOffset time)
+    {
+        var delta = DateTimeOffset.UtcNow - time.ToUniversalTime();
+        if (delta.TotalSeconds < 60)
+        {
+            return "just now";
+        }
+
+        if (delta.TotalMinutes < 60)
+        {
+            var minutes = (int)delta.TotalMinutes;
+            return minutes == 1 ? "1 minute ago" : $"{minutes} minutes ago";
+        }
+
+        if (delta.TotalHours < 24)
+        {
+            var hours = (int)delta.TotalHours;
+            return hours == 1 ? "1 hour ago" : $"{hours} hours ago";
+        }
+
+        if (delta.TotalDays < 7)
+        {
+            var days = (int)delta.TotalDays;
+            return days == 1 ? "1 day ago" : $"{days} days ago";
+        }
+
+        return time.ToLocalTime().ToString("MMM d");
+    }
+}

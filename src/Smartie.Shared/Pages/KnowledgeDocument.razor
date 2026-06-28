@@ -1,0 +1,168 @@
+@page "/knowledge/document/{DocumentId:guid}"
+@using Microsoft.JSInterop
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Smartie · @(_detail?.Name ?? "Document")</PageTitle>
+
+<div class="document-detail-page">
+    <header class="document-detail-header">
+        <button type="button" class="btn-back" @onclick="BackToKnowledge">← Knowledge Base</button>
+        @if (_detail is not null)
+        {
+            <div class="document-detail-title-row">
+                <h1>@_detail.Name</h1>
+                <span class="extraction-badge @GetExtractionBadgeClass(_detail.ExtractionStatus)">
+                    @GetExtractionCardLabel(_detail.ExtractionStatus)
+                </span>
+            </div>
+            <p class="document-detail-subtitle">@_detail.TypeLabel · @FormatBytes(_detail.SizeBytes)</p>
+        }
+    </header>
+
+    @if (_loading)
+    {
+        <div class="document-detail-loading">Loading document…</div>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="document-detail-error">@_error</div>
+    }
+    else if (_detail is not null)
+    {
+        <section class="dashboard-card document-detail-card">
+            <h2 class="card-title">Document Information</h2>
+            <dl class="document-detail-list">
+                <div><dt>Name</dt><dd>@_detail.Name</dd></div>
+                <div><dt>File</dt><dd>@_detail.FileName</dd></div>
+                <div><dt>Type</dt><dd>@_detail.TypeLabel</dd></div>
+                <div><dt>Size</dt><dd>@FormatBytes(_detail.SizeBytes)</dd></div>
+                <div><dt>Status</dt><dd>@_detail.ExtractionStatusLabel</dd></div>
+                <div><dt>Uploaded</dt><dd>@_detail.UploadedAt.ToLocalTime().ToString("f")</dd></div>
+                <div><dt>Updated</dt><dd>@_detail.UpdatedAt.ToLocalTime().ToString("f")</dd></div>
+                @if (_detail.ExtractedAt is not null)
+                {
+                    <div><dt>Extracted</dt><dd>@_detail.ExtractedAt.Value.ToLocalTime().ToString("f")</dd></div>
+                }
+                @if (_detail.ExtractedLength > 0)
+                {
+                    <div><dt>Characters</dt><dd>@_detail.ExtractedLength.ToString("N0")</dd></div>
+                }
+                @if (!string.IsNullOrEmpty(_detail.ExtractionError))
+                {
+                    <div class="detail-error-row"><dt>Error</dt><dd>@_detail.ExtractionError</dd></div>
+                }
+            </dl>
+        </section>
+
+        <section class="dashboard-card document-preview-card">
+            <div class="document-preview-header">
+                <h2 class="card-title">Extracted Text Preview</h2>
+                <span class="preview-note">First 1,000 characters</span>
+            </div>
+            @if (_detail.ExtractionStatus == "Completed" && !string.IsNullOrWhiteSpace(_detail.TextPreview))
+            {
+                <pre class="document-text-preview">@_detail.TextPreview</pre>
+            }
+            else if (_detail.ExtractionStatus == "Extracting")
+            {
+                <p class="document-preview-empty">Extraction in progress…</p>
+            }
+            else if (_detail.ExtractionStatus == "Failed")
+            {
+                <p class="document-preview-empty">Text extraction failed for this document.</p>
+            }
+            else
+            {
+                <p class="document-preview-empty">Text has not been extracted yet.</p>
+            }
+        </section>
+
+        <section class="dashboard-card document-developer-card">
+            <h2 class="card-title">Developer</h2>
+            <dl class="document-detail-list">
+                <div><dt>Characters extracted</dt><dd>@_detail.ExtractedLength.ToString("N0")</dd></div>
+                <div><dt>Extraction time</dt><dd>@FormatDuration(_detail.ExtractionDurationMs)</dd></div>
+                <div><dt>Extractor used</dt><dd>@(_detail.ExtractorUsed ?? "—")</dd></div>
+            </dl>
+        </section>
+
+        <div class="document-detail-actions">
+            <button type="button" class="btn-knowledge btn-knowledge-primary" @onclick="OpenDocumentAsync">Open File</button>
+            <button type="button" class="btn-knowledge btn-knowledge-ghost" @onclick="BackToKnowledge">Back</button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid DocumentId { get; set; }
+
+    private DocumentDetailDto? _detail;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _detail = await Api.GetDocumentDetailAsync(DocumentId);
+            if (_detail is null)
+            {
+                _error = "Document not found.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void BackToKnowledge() => Navigation.NavigateTo("/knowledge");
+
+    private async Task OpenDocumentAsync()
+    {
+        if (_detail is null)
+        {
+            return;
+        }
+
+        var uri = await Api.GetDocumentOpenUriAsync(_detail.Id);
+        await JS.InvokeVoidAsync("smartieChat.openUrl", uri.ToString());
+    }
+
+    private static string FormatBytes(long bytes) =>
+        bytes < 1024 * 1024
+            ? $"{bytes / 1024.0:0.#} KB"
+            : $"{bytes / (1024.0 * 1024.0):0.#} MB";
+
+    private static string FormatDuration(long? ms) =>
+        ms is null or <= 0 ? "—" : $"{ms.Value} ms";
+
+    private static string GetExtractionBadgeClass(string status) =>
+        status switch
+        {
+            "Completed" => "is-extracted",
+            "Failed" => "is-failed",
+            "Extracting" => "is-extracting",
+            _ => "is-pending"
+        };
+
+    private static string GetExtractionCardLabel(string status) =>
+        status switch
+        {
+            "Completed" => "Extracted",
+            "Failed" => "Failed",
+            "Extracting" => "Extracting",
+            _ => "Not Extracted"
+        };
+}

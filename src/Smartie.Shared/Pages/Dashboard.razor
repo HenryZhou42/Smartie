@@ -1,0 +1,422 @@
+@page "/"
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Smartie · Dashboard</PageTitle>
+
+<div class="dashboard-page">
+    <section class="welcome-card dashboard-card">
+        <div class="welcome-content">
+            <p class="welcome-greeting">@Greeting</p>
+            <h1 class="welcome-title">@SmartieAppInfo.Edition</h1>
+            <div class="welcome-meta">
+                @if (_activeProvider is not null)
+                {
+                    <span>@_activeProvider.DisplayName · @_activeProvider.ChatModel</span>
+                }
+                else if (_apiReachable)
+                {
+                    <span>No AI provider selected</span>
+                }
+                else
+                {
+                    <span class="welcome-meta-warn">API offline — start Smartie to connect</span>
+                }
+                <span class="welcome-meta-dot" aria-hidden="true">·</span>
+                <span class="welcome-storage">
+                    <span class="status-dot status-dot-success" aria-hidden="true"></span>
+                    Local SQLite storage
+                </span>
+            </div>
+            <p class="welcome-privacy">Everything stays on your device.</p>
+        </div>
+        <div class="welcome-accent" aria-hidden="true"></div>
+    </section>
+
+    <section class="dashboard-section">
+        <h2 class="section-title">Quick Actions</h2>
+        <div class="quick-actions-grid">
+            @foreach (var action in QuickActions)
+            {
+                if (action.Enabled)
+                {
+                    <button type="button" class="dashboard-card quick-action-card" @onclick="action.OnClick">
+                        <span class="quick-action-icon"><NavIcon Name="@action.Icon" /></span>
+                        <span class="card-title">@action.Title</span>
+                        <span class="card-body">@action.Description</span>
+                    </button>
+                }
+                else
+                {
+                    <div class="dashboard-card quick-action-card is-disabled" title="Coming soon">
+                        <span class="quick-action-icon"><NavIcon Name="@action.Icon" /></span>
+                        <span class="card-title">@action.Title</span>
+                        <span class="card-body">@action.Description</span>
+                        <span class="badge-soon">Coming Soon</span>
+                    </div>
+                }
+            }
+        </div>
+    </section>
+
+    <section class="dashboard-grid">
+        <article class="dashboard-card dashboard-grid-card">
+            <header class="card-header">
+                <h3 class="card-title">Tasks Today</h3>
+            </header>
+            <div class="card-empty">
+                <p class="card-body">No tasks for today.</p>
+                <button type="button" class="btn-card is-disabled" disabled title="Coming soon">Create Task</button>
+            </div>
+        </article>
+
+        <article class="dashboard-card dashboard-grid-card">
+            <header class="card-header">
+                <h3 class="card-title">Recent Conversations</h3>
+            </header>
+            @if (_recentConversations.Count == 0)
+            {
+                <div class="card-empty">
+                    <p class="card-body">Start your first conversation.</p>
+                    <button type="button" class="btn-card" @onclick="StartNewChatAsync">New Chat</button>
+                </div>
+            }
+            else
+            {
+                <ul class="conversation-list-dash">
+                    @foreach (var c in _recentConversations)
+                    {
+                        <li>
+                            <button type="button" class="conversation-row" @onclick="() => OpenConversationAsync(c.Id)">
+                                @if (c.IsPinned)
+                                {
+                                    <span class="pin-icon" title="Pinned"><NavIcon Name="pin" /></span>
+                                }
+                                <span class="conversation-row-title">@c.Title</span>
+                                <span class="conversation-row-time">@FormatRelativeTime(c.UpdatedAt)</span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+                <div class="card-footer">
+                    <button type="button" class="btn-card btn-card-ghost" @onclick="StartNewChatAsync">New Chat</button>
+                </div>
+            }
+        </article>
+
+        <article class="dashboard-card dashboard-grid-card">
+            <header class="card-header">
+                <h3 class="card-title">Knowledge Base</h3>
+            </header>
+            @if (_documentStats is null)
+            {
+                <p class="card-body">Loading knowledge base…</p>
+            }
+            else if (_documentStats.DocumentCount == 0)
+            {
+                <div class="card-empty">
+                    <p class="card-body">Upload documents to let Smartie answer questions from your files.</p>
+                    <button type="button" class="btn-card" @onclick="OpenKnowledgeBase">Upload Document</button>
+                </div>
+            }
+            else
+            {
+                <dl class="status-list">
+                    <div class="status-row">
+                        <dt>Documents</dt>
+                        <dd>@_documentStats.DocumentCount</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Indexed</dt>
+                        <dd>@_documentStats.IndexedCount</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Storage</dt>
+                        <dd>@FormatBytes(_documentStats.TotalSizeBytes)</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Recent uploads</dt>
+                        <dd>@_documentStats.RecentUploadCount</dd>
+                    </div>
+                </dl>
+                <div class="card-footer">
+                    <button type="button" class="btn-card btn-card-ghost" @onclick="OpenKnowledgeBase">Open Knowledge Base</button>
+                </div>
+            }
+        </article>
+
+        <article class="dashboard-card dashboard-grid-card is-muted">
+            <header class="card-header">
+                <h3 class="card-title">Smart Memory</h3>
+                <span class="badge-soon">Coming Soon</span>
+            </header>
+            <p class="card-body">Smart Memory will remember important facts and preferences across conversations — without sending your data to the cloud.</p>
+        </article>
+
+        <article class="dashboard-card dashboard-grid-card">
+            <header class="card-header">
+                <h3 class="card-title">Provider Status</h3>
+            </header>
+            @if (_activeProvider is not null)
+            {
+                <dl class="status-list">
+                    <div class="status-row">
+                        <dt>Provider</dt>
+                        <dd>@_activeProvider.DisplayName</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Model</dt>
+                        <dd>@_activeProvider.ChatModel</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>API Key</dt>
+                        <dd>
+                            @if (!_activeProvider.RequiresApiKey || _activeProvider.HasApiKey)
+                            {
+                                <span class="status-pill status-pill-success">Configured</span>
+                            }
+                            else
+                            {
+                                <span class="status-pill status-pill-warning">Not configured</span>
+                            }
+                        </dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Storage</dt>
+                        <dd>SQLite</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Status</dt>
+                        <dd class="status-connected">
+                            <span class="status-dot @ProviderStatusDotClass" aria-hidden="true"></span>
+                            @ProviderStatusLabel
+                        </dd>
+                    </div>
+                </dl>
+            }
+            else
+            {
+                <p class="card-body">Configure an AI provider to start chatting.</p>
+            }
+            <div class="card-footer">
+                <button type="button" class="btn-card" @onclick="OpenSettings">Open AI Settings</button>
+            </div>
+        </article>
+
+        <article class="dashboard-card dashboard-grid-card">
+            <header class="card-header">
+                <h3 class="card-title">Recent Activity</h3>
+            </header>
+            @if (_activityItems.Count == 0)
+            {
+                <p class="card-body card-empty-text">Your recent activity will appear here.</p>
+            }
+            else
+            {
+                <ul class="activity-list">
+                    @foreach (var item in _activityItems)
+                    {
+                        <li class="activity-item">
+                            <span class="activity-icon"><NavIcon Name="@item.Icon" /></span>
+                            <span class="activity-text">@item.Text</span>
+                            <span class="activity-time">@FormatRelativeTime(item.At)</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+
+        <article class="dashboard-card dashboard-grid-card dashboard-edition-card">
+            <header class="card-header">
+                <h3 class="card-title">@SmartieAppInfo.Edition</h3>
+            </header>
+            <ul class="edition-list">
+                <li>Version @SmartieAppInfo.Version</li>
+                <li>No login required</li>
+                <li>Local SQLite storage</li>
+                <li>Bring your own AI key</li>
+                <li class="edition-cloud">
+                    <NavIcon Name="cloud" />
+                    Smartie Cloud: Coming Soon
+                </li>
+            </ul>
+        </article>
+    </section>
+</div>
+
+@code {
+    private const int RecentConversationLimit = 5;
+    private const int ActivityLimit = 6;
+
+    private AiProviderDto? _activeProvider;
+    private bool _apiReachable;
+    private List<ConversationDto> _recentConversations = new();
+    private List<ActivityItem> _activityItems = new();
+    private DocumentStatsDto? _documentStats;
+
+    private string Greeting
+    {
+        get
+        {
+            var hour = DateTime.Now.Hour;
+            return hour switch
+            {
+                >= 5 and < 12 => "Good morning",
+                >= 12 and < 17 => "Good afternoon",
+                >= 17 and < 22 => "Good evening",
+                _ => "Good night"
+            };
+        }
+    }
+
+    private string ProviderStatusLabel =>
+        !_apiReachable ? "Offline"
+        : _activeProvider is null ? "Not configured"
+        : _activeProvider.RequiresApiKey && !_activeProvider.HasApiKey ? "Needs API key"
+        : "Connected";
+
+    private string ProviderStatusDotClass =>
+        ProviderStatusLabel switch
+        {
+            "Connected" => "status-dot-success",
+            "Needs API key" or "Not configured" => "status-dot-warning",
+            _ => "status-dot-error"
+        };
+
+    private sealed record QuickActionItem(
+        string Title,
+        string Description,
+        string Icon,
+        bool Enabled,
+        Func<Task> OnClick);
+
+    private QuickActionItem[] QuickActions => new[]
+    {
+        new QuickActionItem("New Chat", "Start a new conversation with Smartie.", "plus", true, StartNewChatAsync),
+        new QuickActionItem("Upload Document", "Add a PDF, Word file, or note to your knowledge base.", "upload", true, () => { OpenKnowledgeBase(); return Task.CompletedTask; }),
+        new QuickActionItem("Create Task", "Add a reminder or productivity task.", "tasks", false, () => Task.CompletedTask),
+        new QuickActionItem("Open Command Bar", "Quickly launch Smartie actions.", "command", false, () => Task.CompletedTask),
+        new QuickActionItem("Search Knowledge Base", "Find answers across your uploaded documents.", "search", true, () => { OpenKnowledgeBase(); return Task.CompletedTask; }),
+        new QuickActionItem("Open Settings", "Configure AI providers and preferences.", "settings", true, () => { OpenSettings(); return Task.CompletedTask; })
+    };
+
+    private sealed record ActivityItem(string Icon, string Text, DateTimeOffset At);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        try
+        {
+            var settings = await Api.GetAiSettingsAsync();
+            _apiReachable = true;
+            _activeProvider = settings.Providers.FirstOrDefault(p =>
+                string.Equals(p.Provider, settings.SelectedProvider, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            _apiReachable = false;
+            _activeProvider = null;
+        }
+
+        try
+        {
+            var conversations = await Api.GetConversationsAsync();
+            _recentConversations = conversations
+                .OrderByDescending(c => c.IsPinned)
+                .ThenByDescending(c => c.PinnedAt ?? c.UpdatedAt)
+                .ThenByDescending(c => c.UpdatedAt)
+                .Take(RecentConversationLimit)
+                .ToList();
+
+            _activityItems = conversations
+                .OrderByDescending(c => c.UpdatedAt)
+                .Take(ActivityLimit)
+                .Select(c => new ActivityItem("chat", $"Chat · {c.Title}", c.UpdatedAt))
+                .ToList();
+        }
+        catch
+        {
+            _recentConversations = new();
+            _activityItems = new();
+        }
+
+        try
+        {
+            _documentStats = await Api.GetDocumentStatsAsync();
+        }
+        catch
+        {
+            _documentStats = null;
+        }
+    }
+
+    private async Task StartNewChatAsync()
+    {
+        try
+        {
+            var created = await Api.CreateConversationAsync();
+            Navigation.NavigateTo($"/chat?c={created.Id}");
+        }
+        catch
+        {
+            Navigation.NavigateTo("/chat");
+        }
+    }
+
+    private void OpenConversationAsync(Guid id) =>
+        Navigation.NavigateTo($"/chat?c={id}");
+
+    private void OpenSettings() =>
+        Navigation.NavigateTo("/settings");
+
+    private void OpenKnowledgeBase() =>
+        Navigation.NavigateTo("/knowledge");
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+
+    private static string FormatRelativeTime(DateTimeOffset time)
+    {
+        var delta = DateTimeOffset.UtcNow - time.ToUniversalTime();
+        if (delta.TotalSeconds < 60)
+        {
+            return "just now";
+        }
+
+        if (delta.TotalMinutes < 60)
+        {
+            var minutes = (int)delta.TotalMinutes;
+            return minutes == 1 ? "1 min ago" : $"{minutes} min ago";
+        }
+
+        if (delta.TotalHours < 24)
+        {
+            var hours = (int)delta.TotalHours;
+            return hours == 1 ? "1 hr ago" : $"{hours} hr ago";
+        }
+
+        if (delta.TotalDays < 7)
+        {
+            var days = (int)delta.TotalDays;
+            return days == 1 ? "1 day ago" : $"{days} days ago";
+        }
+
+        return time.ToLocalTime().ToString("MMM d");
+    }
+}

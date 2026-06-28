@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>cbc43789-1187-47b6-b3ed-aa66a3464025</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.16" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Smartie.Application\Smartie.Application.csproj" />
+    <ProjectReference Include="..\Smartie.Infrastructure\Smartie.Infrastructure.csproj" />
+    <ProjectReference Include="..\Smartie.Contracts\Smartie.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

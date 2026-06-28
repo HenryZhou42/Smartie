@@ -1,0 +1,73 @@
+@using Microsoft.JSInterop
+
+@if (IsVisible)
+{
+    <div class="confirm-backdrop"
+         role="presentation"
+         @ref="_backdrop"
+         tabindex="-1"
+         @onkeydown="HandleKeyDownAsync">
+        <div class="confirm-dialog"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="@_titleId"
+             aria-describedby="@_bodyId">
+            <h2 class="confirm-title" id="@_titleId">@Title</h2>
+            <p class="confirm-body" id="@_bodyId">@Body</p>
+            <div class="confirm-actions">
+                <button type="button" class="btn-secondary" @onclick="HandleCancelAsync">@CancelText</button>
+                <button type="button" class="btn-primary" @onclick="HandleConfirmAsync">@ConfirmText</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly string _titleId = $"confirm-title-{Guid.NewGuid():N}";
+    private readonly string _bodyId = $"confirm-body-{Guid.NewGuid():N}";
+    private ElementReference _backdrop;
+    private bool _wasVisible;
+
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Body { get; set; } = string.Empty;
+    [Parameter] public string ConfirmText { get; set; } = "Continue";
+    [Parameter] public string CancelText { get; set; } = "Cancel";
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsVisible && !_wasVisible)
+        {
+            try
+            {
+                await _backdrop.FocusAsync();
+            }
+            catch (JSException)
+            {
+                // Focus may fail if element is not yet focusable in some hosts.
+            }
+        }
+
+        _wasVisible = IsVisible;
+    }
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await HandleCancelAsync();
+        }
+    }
+
+    private async Task HandleCancelAsync()
+    {
+        await OnCancel.InvokeAsync();
+    }
+
+    private async Task HandleConfirmAsync()
+    {
+        await OnConfirm.InvokeAsync();
+    }
+}

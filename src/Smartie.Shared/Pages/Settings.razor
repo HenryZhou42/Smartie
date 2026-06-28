@@ -1,0 +1,259 @@
+@page "/settings"
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Smartie · Settings</PageTitle>
+
+<div class="settings-page">
+    <header class="settings-header">
+        <p class="edition-badge">Community Edition</p>
+        <h1>AI Providers</h1>
+        <p>Bring your own AI. Pick a provider, enter your own API key, and chat — all data stays on this device. Keys are encrypted locally and sent only to the provider you choose.</p>
+    </header>
+
+    @if (_settings is null)
+    {
+        <div class="settings-loading">@(_error ?? "Loading…")</div>
+    }
+    else
+    {
+        @if (_error is not null)
+        {
+            <div class="settings-error">@_error</div>
+        }
+        @if (_status is not null)
+        {
+            <div class="settings-status">@_status</div>
+        }
+
+        <div class="provider-grid">
+            @foreach (var p in _settings.Providers)
+            {
+                var isSelected = string.Equals(p.Provider, _settings.SelectedProvider, StringComparison.OrdinalIgnoreCase);
+                <div class="provider-card @(isSelected ? "active" : string.Empty) @(p.Available ? string.Empty : "unavailable")">
+                    <div class="provider-card-head">
+                        <div class="provider-name">
+                            @p.DisplayName
+                            @if (isSelected)
+                            {
+                                <span class="badge badge-active">Active</span>
+                            }
+                            @if (!p.Available)
+                            {
+                                <span class="badge badge-soon">Coming soon</span>
+                            }
+                        </div>
+                        @if (p.Available && !isSelected)
+                        {
+                            <button class="btn-use" @onclick="() => SelectAsync(p.Provider)">Use this</button>
+                        }
+                    </div>
+
+                    @if (p.Available)
+                    {
+                        <div class="provider-fields">
+                            @if (p.RequiresApiKey)
+                            {
+                                <label>
+                                    <span>API key @(p.HasApiKey ? "(stored)" : string.Empty)</span>
+                                    <input type="password" autocomplete="off"
+                                           placeholder="@(p.HasApiKey ? "•••••••• leave blank to keep" : "Paste your API key")"
+                                           @bind="_apiKey[p.Provider]" />
+                                </label>
+                            }
+
+                            <label>
+                                <span>Model</span>
+                                <input type="text" placeholder="@p.DefaultChatModel" @bind="_model[p.Provider]" />
+                            </label>
+
+                            @if (p.RequiresEndpoint)
+                            {
+                                <label>
+                                    <span>Endpoint</span>
+                                    <input type="text" placeholder="@p.DefaultEndpoint" @bind="_endpoint[p.Provider]" />
+                                </label>
+                            }
+
+                            <button class="btn-save" disabled="@_saving" @onclick="() => SaveAsync(p.Provider)">Save</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="provider-note">Smartie Cloud — coming soon. Not part of Community Edition.</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <section class="settings-knowledge">
+        <header class="settings-header">
+            <h1>Knowledge Base</h1>
+            <p>Community Edition stores documents locally on this device. No cloud sync, no embeddings yet.</p>
+        </header>
+
+        @if (_knowledgeSettings is null)
+        {
+            <div class="settings-loading">@(_knowledgeError ?? "Loading…")</div>
+        }
+        else
+        {
+            <div class="provider-card knowledge-settings-card">
+                <dl class="knowledge-settings-list">
+                    <div><dt>Storage folder</dt><dd>@_knowledgeSettings.StorageFolder</dd></div>
+                    <div><dt>Max file size</dt><dd>@FormatFileSize(_knowledgeSettings.MaxFileSizeBytes)</dd></div>
+                    <div><dt>Default collection</dt><dd>Coming Soon</dd></div>
+                    <div><dt>Supported types</dt><dd>@string.Join(", ", _knowledgeSettings.SupportedExtensions)</dd></div>
+                </dl>
+                <p class="knowledge-settings-note">Chunk size, embedding provider, and semantic search are planned for a future milestone.</p>
+                <button type="button" class="btn-save" @onclick="OpenKnowledgeBase">Open Knowledge Base</button>
+            </div>
+        }
+    </section>
+
+    <section class="settings-knowledge settings-developer">
+        <header class="settings-header">
+            <h1>Developer</h1>
+            <p>Document text extraction diagnostics for the local Knowledge Base pipeline.</p>
+        </header>
+
+        @if (_extractionDeveloper is null)
+        {
+            <div class="settings-loading">@(_extractionDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <div class="provider-card knowledge-settings-card">
+                <dl class="knowledge-settings-list">
+                    <div><dt>Characters extracted</dt><dd>@_extractionDeveloper.TotalExtractedCharacters.ToString("N0")</dd></div>
+                    <div><dt>Documents extracted</dt><dd>@_extractionDeveloper.ExtractedCount</dd></div>
+                    <div><dt>Last extraction</dt><dd>@FormatExtractionTime(_extractionDeveloper.LastExtractedAt)</dd></div>
+                    <div><dt>Extraction time</dt><dd>@FormatExtractionDuration(_extractionDeveloper.LastExtractionDurationMs)</dd></div>
+                    <div><dt>Extractor used</dt><dd>@(_extractionDeveloper.LastExtractorUsed ?? "—")</dd></div>
+                </dl>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private AiSettingsDto? _settings;
+    private KnowledgeBaseSettingsDto? _knowledgeSettings;
+    private DocumentExtractionDeveloperDto? _extractionDeveloper;
+    private string? _extractionDeveloperError;
+    private string? _knowledgeError;
+    private string? _error;
+    private string? _status;
+    private bool _saving;
+
+    private readonly Dictionary<string, string?> _apiKey = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _model = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _endpoint = new(StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await LoadKnowledgeSettingsAsync();
+        await LoadExtractionDeveloperAsync();
+    }
+
+    private async Task LoadExtractionDeveloperAsync()
+    {
+        try
+        {
+            _extractionDeveloper = await Api.GetDocumentExtractionDeveloperAsync();
+            _extractionDeveloperError = null;
+        }
+        catch (Exception ex)
+        {
+            _extractionDeveloperError = ex.Message;
+        }
+    }
+
+    private async Task LoadKnowledgeSettingsAsync()
+    {
+        try
+        {
+            _knowledgeSettings = await Api.GetKnowledgeBaseSettingsAsync();
+            _knowledgeError = null;
+        }
+        catch (Exception ex)
+        {
+            _knowledgeError = ex.Message;
+        }
+    }
+
+    private void OpenKnowledgeBase() => Navigation.NavigateTo("/knowledge");
+
+    private static string FormatFileSize(long bytes) =>
+        bytes < 1024 * 1024
+            ? $"{bytes / 1024.0:0.#} KB"
+            : $"{bytes / (1024.0 * 1024.0):0.#} MB";
+
+    private static string FormatExtractionTime(DateTimeOffset? value) =>
+        value?.ToLocalTime().ToString("f") ?? "—";
+
+    private static string FormatExtractionDuration(long? ms) =>
+        ms is null or <= 0 ? "—" : $"{ms.Value} ms";
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _settings = await Api.GetAiSettingsAsync();
+            foreach (var p in _settings.Providers)
+            {
+                _apiKey[p.Provider] = string.Empty;
+                _model[p.Provider] = p.ChatModel;
+                _endpoint[p.Provider] = p.Endpoint;
+            }
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load settings: {ex.Message}";
+        }
+    }
+
+    private async Task SelectAsync(string provider)
+    {
+        _status = null;
+        try
+        {
+            await Api.SetAiProviderAsync(provider);
+            await LoadAsync();
+            _status = "Active provider updated.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not switch provider: {ex.Message}";
+        }
+    }
+
+    private async Task SaveAsync(string provider)
+    {
+        _saving = true;
+        _status = null;
+        try
+        {
+            var key = _apiKey.GetValueOrDefault(provider);
+            var request = new SaveProviderCredentialRequest(
+                string.IsNullOrWhiteSpace(key) ? null : key,
+                _model.GetValueOrDefault(provider),
+                _endpoint.GetValueOrDefault(provider));
+
+            await Api.SaveAiProviderCredentialAsync(provider, request);
+            await LoadAsync();
+            _status = "Saved.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not save: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -1,0 +1,104 @@
+@inherits LayoutComponentBase
+@inject SmartieApiClient Api
+
+<div class="smartie-shell">
+    <nav class="smartie-sidebar smartie-panel">
+        <div class="smartie-brand">
+            <span class="smartie-brand-mark" title="Smartie">S</span>
+            <div class="smartie-brand-text">
+                <span class="smartie-brand-name">Smartie</span>
+                <span class="smartie-brand-edition">Community Edition</span>
+                <span class="smartie-brand-tagline">AI Productivity OS</span>
+            </div>
+        </div>
+
+        <ul class="smartie-nav">
+            @foreach (var item in NavItems)
+            {
+                @if (item.Enabled)
+                {
+                    <li>
+                        <NavLink class="smartie-nav-link" href="@item.Href" title="@item.Label"
+                                 Match="@GetNavMatch(item)">
+                            <span class="smartie-nav-icon"><NavIcon Name="@item.Icon" /></span>
+                            <span class="smartie-nav-label">@item.Label</span>
+                        </NavLink>
+                    </li>
+                }
+                else
+                {
+                    <li>
+                        <span class="smartie-nav-link disabled" title="@($"{item.Label} — Coming soon")">
+                            <span class="smartie-nav-icon"><NavIcon Name="@item.Icon" /></span>
+                            <span class="smartie-nav-label">@item.Label</span>
+                        </span>
+                    </li>
+                }
+            }
+        </ul>
+
+        <div class="smartie-sidebar-footer">
+            <span class="smartie-footer-edition">Community Edition</span>
+            <div class="smartie-footer-meta">
+                <span>Version @AppVersion</span>
+                @if (!string.IsNullOrEmpty(_providerLabel))
+                {
+                    <span>@_providerLabel</span>
+                }
+            </div>
+            <div class="smartie-footer-links">
+                <NavLink class="smartie-footer-link" href="about">About</NavLink>
+                <span class="smartie-footer-link muted" title="Coming soon">Cloud</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="smartie-main smartie-panel">
+        @Body
+    </main>
+</div>
+
+@code {
+    private const string AppVersion = SmartieAppInfo.Version;
+
+    private string? _providerLabel;
+
+    private record NavItem(string Label, string Icon, string Href, bool Enabled);
+
+    private static readonly NavItem[] NavItems =
+    {
+        new("Dashboard", "dashboard", "", true),
+        new("Chat", "chat", "chat", true),
+        new("Knowledge Base", "knowledge", "knowledge", true),
+        new("Tasks", "tasks", "tasks", false),
+        new("Files", "files", "files", false),
+        new("Automations", "automations", "automations", false),
+        new("Settings", "settings", "settings", true),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var settings = await Api.GetAiSettingsAsync();
+            var active = settings.Providers.FirstOrDefault(p =>
+                string.Equals(p.Provider, settings.SelectedProvider, StringComparison.OrdinalIgnoreCase));
+            if (active is not null)
+            {
+                _providerLabel = $"{active.DisplayName} · {active.ChatModel}";
+            }
+        }
+        catch
+        {
+            // API may be offline during startup.
+        }
+    }
+
+    private static NavLinkMatch GetNavMatch(NavItem item) =>
+        item.Icon switch
+        {
+            "dashboard" => NavLinkMatch.All,
+            "chat" => NavLinkMatch.Prefix,
+            _ => NavLinkMatch.Prefix
+        };
+}

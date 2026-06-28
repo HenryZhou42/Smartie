@@ -1,0 +1,260 @@
+@using Microsoft.JSInterop
+@inject SmartieApiClient Api
+
+@if (IsVisible)
+{
+    <div class="attach-modal-backdrop"
+         role="presentation"
+         @ref="_backdrop"
+         tabindex="-1"
+         @onkeydown="HandleKeyDownAsync">
+        <div class="attach-modal"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="@_titleId">
+            <header class="attach-modal-header">
+                <h2 class="attach-modal-title" id="@_titleId">Attach documents</h2>
+                <p class="attach-modal-subtitle">Choose files from your Knowledge Base</p>
+            </header>
+
+            @if (_loading)
+            {
+                <div class="attach-modal-body attach-modal-body-centered">
+                    <div class="attach-modal-status">Loading documents…</div>
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="attach-modal-body attach-modal-body-centered">
+                    <div class="attach-modal-error">@_error</div>
+                </div>
+            }
+            else if (_documents.Count == 0)
+            {
+                <div class="attach-modal-body attach-modal-body-centered">
+                    <div class="attach-modal-status">
+                        No documents yet. Upload files in <NavLink href="knowledge">Knowledge Base</NavLink>.
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="attach-modal-search-wrap">
+                    <span class="attach-modal-search-icon" aria-hidden="true">⌕</span>
+                    <input type="search"
+                           class="attach-modal-search"
+                           placeholder="Search documents..."
+                           @bind="_search"
+                           @bind:event="oninput"
+                           aria-label="Search documents" />
+                </div>
+
+                <div class="attach-modal-body">
+                    @if (!FilteredDocuments.Any())
+                    {
+                        <div class="attach-modal-status attach-modal-status-inline">
+                            No documents match your search.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="attach-modal-list chat-scroll" role="list">
+                            @foreach (var doc in FilteredDocuments)
+                            {
+                                var selected = _selectedIds.Contains(doc.Id);
+                                var alreadyAttached = AlreadyAttachedIds.Contains(doc.Id);
+
+                                <button type="button"
+                                        role="listitem"
+                                        class="attach-doc-card @(selected ? "is-selected" : null) @(alreadyAttached ? "is-attached" : null)"
+                                        disabled="@alreadyAttached"
+                                        aria-pressed="@selected"
+                                        aria-label="@GetCardLabel(doc, selected, alreadyAttached)"
+                                        @onclick="() => ToggleSelection(doc.Id)">
+                                    <span class="attach-doc-check @(selected ? "is-checked" : null)" aria-hidden="true">
+                                        @if (selected)
+                                        {
+                                            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            </svg>
+                                        }
+                                    </span>
+                                    <span class="attach-doc-content">
+                                        <span class="attach-doc-name">
+                                            <span class="attach-doc-icon" aria-hidden="true">📄</span>
+                                            @doc.Name
+                                        </span>
+                                        <span class="attach-doc-meta">@doc.TypeLabel • @FormatBytes(doc.SizeBytes)</span>
+                                        <span class="attach-doc-date">Uploaded @FormatUploadDate(doc.UploadedAt)</span>
+                                    </span>
+                                    @if (alreadyAttached)
+                                    {
+                                        <span class="attach-doc-badge">Attached</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            <footer class="attach-modal-footer">
+                @if (_selectedIds.Count > 0)
+                {
+                    <span class="attach-modal-count">@_selectedIds.Count selected</span>
+                }
+                <div class="attach-modal-actions">
+                    <button type="button" class="attach-modal-btn attach-modal-btn-secondary" @onclick="HandleCancelAsync">
+                        Cancel
+                    </button>
+                    <button type="button"
+                            class="attach-modal-btn attach-modal-btn-primary"
+                            disabled="@(_loading || _selectedIds.Count == 0)"
+                            @onclick="HandleAttachAsync">
+                        Attach Selected
+                    </button>
+                </div>
+            </footer>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly string _titleId = $"attach-modal-title-{Guid.NewGuid():N}";
+    private ElementReference _backdrop;
+    private bool _wasVisible;
+    private bool _loading;
+    private string? _error;
+    private string _search = string.Empty;
+    private List<DocumentDto> _documents = new();
+    private readonly HashSet<Guid> _selectedIds = new();
+
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public IReadOnlyList<Guid> AlreadyAttachedIds { get; set; } = Array.Empty<Guid>();
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<DocumentDto>> OnAttach { get; set; }
+
+    private IEnumerable<DocumentDto> FilteredDocuments
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_search))
+            {
+                return _documents;
+            }
+
+            var term = _search.Trim();
+            return _documents.Where(doc =>
+                doc.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || doc.FileName.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || doc.TypeLabel.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && !_wasVisible)
+        {
+            _selectedIds.Clear();
+            _search = string.Empty;
+            await LoadDocumentsAsync();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsVisible && !_wasVisible)
+        {
+            try
+            {
+                await _backdrop.FocusAsync();
+            }
+            catch (JSException)
+            {
+            }
+            catch (Exception)
+            {
+                // Focus can fail in some WebView hosts; never crash the app for it.
+            }
+        }
+
+        _wasVisible = IsVisible;
+    }
+
+    private async Task LoadDocumentsAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _documents = (await Api.GetDocumentsAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load documents: {ex.Message}";
+            _documents = new List<DocumentDto>();
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleSelection(Guid documentId)
+    {
+        if (AlreadyAttachedIds.Contains(documentId))
+        {
+            return;
+        }
+
+        if (!_selectedIds.Add(documentId))
+        {
+            _selectedIds.Remove(documentId);
+        }
+    }
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await HandleCancelAsync();
+        }
+    }
+
+    private async Task HandleCancelAsync() => await OnCancel.InvokeAsync();
+
+    private async Task HandleAttachAsync()
+    {
+        var selected = _documents.Where(d => _selectedIds.Contains(d.Id)).ToList();
+        await OnAttach.InvokeAsync(selected);
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+
+    private static string FormatUploadDate(DateTimeOffset uploadedAt) =>
+        uploadedAt.ToLocalTime().ToString("MMM d, yyyy");
+
+    private static string GetCardLabel(DocumentDto doc, bool selected, bool alreadyAttached)
+    {
+        if (alreadyAttached)
+        {
+            return $"{doc.Name}, already attached";
+        }
+
+        return selected ? $"{doc.Name}, selected" : $"{doc.Name}, not selected";
+    }
+}

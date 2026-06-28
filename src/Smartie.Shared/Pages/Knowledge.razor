@@ -1,0 +1,711 @@
+@page "/knowledge"
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject IDocumentFilePickerService FilePicker
+@inject ISmartieApiEndpointProvider ApiEndpointProvider
+@inject INativeKnowledgeDropBridge NativeDrop
+@implements IAsyncDisposable
+
+<PageTitle>Smartie · Knowledge Base</PageTitle>
+
+@if (!FilePicker.IsNativePickerAvailable)
+{
+    <InputFile id="knowledge-upload-input"
+               OnChange="OnFilesSelectedAsync"
+               multiple
+               accept=".pdf,.docx,.txt,.md,.markdown"
+               class="hidden-file-input"
+               disabled="@_uploading" />
+}
+
+<div id="knowledge-drop-zone"
+     class="knowledge-page">
+    <div class="knowledge-drop-overlay" aria-hidden="true">
+        <div class="knowledge-drop-card">
+            <div class="knowledge-drop-icon">📄</div>
+            <p class="knowledge-drop-title">Drop documents to add them to your Knowledge Base</p>
+            <p class="knowledge-drop-subtitle">PDF, DOCX, TXT, Markdown</p>
+        </div>
+    </div>
+
+    <header class="knowledge-header">
+        <div class="knowledge-header-text">
+            <h1>Knowledge Base</h1>
+            <p>Manage your personal documents and AI resources.</p>
+        </div>
+        <div class="knowledge-header-actions">
+            <button type="button" class="upload-button" @onclick="TriggerUploadAsync" disabled="@_uploading">
+                Upload Document
+            </button>
+            <button type="button" class="btn-knowledge btn-knowledge-ghost" @onclick="LoadAsync" disabled="@_loading">
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="knowledge-status">@_status</div>
+    }
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="knowledge-error">@_error</div>
+    }
+
+    <section class="knowledge-stats-grid">
+        <article class="dashboard-card knowledge-stat-card">
+            <span class="knowledge-stat-value">@(_stats?.DocumentCount ?? 0)</span>
+            <span class="knowledge-stat-label">Documents</span>
+        </article>
+        <article class="dashboard-card knowledge-stat-card is-muted">
+            <span class="knowledge-stat-value">0</span>
+            <span class="knowledge-stat-label">Collections</span>
+            <span class="badge-soon">Coming Soon</span>
+        </article>
+        <article class="dashboard-card knowledge-stat-card">
+            <span class="knowledge-stat-value">@(_stats?.IndexedCount ?? 0)</span>
+            <span class="knowledge-stat-label">Indexed</span>
+        </article>
+        <article class="dashboard-card knowledge-stat-card">
+            <span class="knowledge-stat-value">@FormatBytes(_stats?.TotalSizeBytes ?? 0)</span>
+            <span class="knowledge-stat-label">Storage Used</span>
+        </article>
+        <article class="dashboard-card knowledge-stat-card">
+            <span class="knowledge-stat-value">@(_stats?.RecentUploadCount ?? 0)</span>
+            <span class="knowledge-stat-label">Recent Uploads</span>
+        </article>
+    </section>
+
+    <section class="dashboard-card knowledge-search-card">
+        <input type="search" class="knowledge-search" placeholder="Search documents…"
+               @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKeyUp" />
+        <p class="knowledge-search-hint">Search by name, filename, or type. Tags and collections coming soon.</p>
+    </section>
+
+    @if (_documents.Count == 0 && !_loading)
+    {
+        <section class="empty-state">
+            <div class="dashboard-card empty-state-card">
+                <div class="empty-state-icon" aria-hidden="true">📄</div>
+                <h2 class="empty-state-title">No documents yet.</h2>
+                <p class="empty-state-description">Upload your first document to begin building your knowledge base.</p>
+                <button type="button" class="upload-button" @onclick="TriggerUploadAsync" disabled="@_uploading">
+                    Upload Document
+                </button>
+                <p class="supported-file-types">Supported: PDF, DOCX, TXT, Markdown</p>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="dashboard-card knowledge-table-card">
+            <div class="knowledge-table-wrap">
+                <table class="knowledge-table">
+                    <thead>
+                        <tr>
+                            <th scope="col"></th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Extraction</th>
+                            <th scope="col">Size</th>
+                            <th scope="col">Created</th>
+                            <th scope="col">Updated</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in _documents)
+                        {
+                            <tr>
+                                <td class="col-icon" aria-hidden="true">📄</td>
+                                <td class="col-name">
+                                    @if (_renamingId == doc.Id)
+                                    {
+                                        <input class="knowledge-rename-input" @bind="_renameText" @bind:event="oninput"
+                                               @onkeydown="(e) => HandleRenameKeyDown(e, doc.Id)" />
+                                    }
+                                    else
+                                    {
+                                        <span class="doc-name">@doc.Name</span>
+                                        <span class="doc-filename">@doc.FileName</span>
+                                    }
+                                </td>
+                                <td>@doc.TypeLabel</td>
+                                <td>
+                                    <span class="extraction-badge @GetExtractionBadgeClass(doc.ExtractionStatus)">
+                                        @GetExtractionCardLabel(doc)
+                                    </span>
+                                </td>
+                                <td>@FormatBytes(doc.SizeBytes)</td>
+                                <td>@FormatRelativeTime(doc.UploadedAt)</td>
+                                <td>@FormatRelativeTime(doc.UpdatedAt)</td>
+                                <td class="col-actions">
+                                    @if (_renamingId == doc.Id)
+                                    {
+                                        <button type="button" class="btn-table" @onclick="() => SaveRenameAsync(doc.Id)">Save</button>
+                                        <button type="button" class="btn-table btn-table-muted" @onclick="CancelRename">Cancel</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn-table" @onclick="() => ViewDocument(doc.Id)">View</button>
+                                        <button type="button" class="btn-table" @onclick="() => OpenDocumentAsync(doc.Id)">Open</button>
+                                        <button type="button" class="btn-table" @onclick="() => BeginRename(doc)">Rename</button>
+                                        <button type="button" class="btn-table" @onclick="() => ShowMetadata(doc)">Info</button>
+                                        <button type="button" class="btn-table btn-table-danger" @onclick="() => DeleteDocumentAsync(doc.Id)">Delete</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="dashboard-card knowledge-types-card">
+            <h3 class="card-title">Supported types</h3>
+            <div class="knowledge-type-tags">
+                @foreach (var ext in _supportedTypes)
+                {
+                    <span class="type-tag">@ext.TrimStart('.').ToUpperInvariant()</span>
+                }
+            </div>
+            <p class="knowledge-future-types">
+                Future: Images, PPTX, XLSX, Web Pages
+            </p>
+        </section>
+    }
+
+    <footer class="knowledge-footer">
+        <span class="knowledge-local-note">Community Edition — all files remain local in your Smartie documents folder.</span>
+        @if (!string.IsNullOrEmpty(_storageFolder))
+        {
+            <span class="knowledge-storage-path" title="@_storageFolder">@_storageFolder</span>
+        }
+    </footer>
+</div>
+
+@if (_metadataDocument is not null)
+{
+    <div class="knowledge-metadata-backdrop" @onclick="CloseMetadata">
+        <div class="dashboard-card knowledge-metadata-dialog" role="dialog" aria-modal="true" @onclick:stopPropagation="true">
+            <h2 class="card-title">@_metadataDocument.Name</h2>
+            <dl class="knowledge-metadata-list">
+                <div><dt>File</dt><dd>@_metadataDocument.FileName</dd></div>
+                <div><dt>Type</dt><dd>@_metadataDocument.TypeLabel</dd></div>
+                <div><dt>Size</dt><dd>@FormatBytes(_metadataDocument.SizeBytes)</dd></div>
+                <div><dt>Uploaded</dt><dd>@_metadataDocument.UploadedAt.ToLocalTime().ToString("f")</dd></div>
+                <div><dt>Updated</dt><dd>@_metadataDocument.UpdatedAt.ToLocalTime().ToString("f")</dd></div>
+                <div><dt>Indexed</dt><dd>@(_metadataDocument.IsIndexed ? "Yes" : "No")</dd></div>
+                <div><dt>Extraction</dt><dd>@_metadataDocument.ExtractionStatusLabel</dd></div>
+                <div><dt>Tags</dt><dd>@_metadataDocument.TagCount</dd></div>
+            </dl>
+            <button type="button" class="btn-knowledge btn-knowledge-primary" @onclick="CloseMetadata">Close</button>
+        </div>
+    </div>
+}
+
+@code {
+    private const string DropZoneId = "knowledge-drop-zone";
+    private const long DefaultMaxFileSizeBytes = 52_428_800;
+
+    private List<DocumentDto> _documents = new();
+    private DocumentStatsDto? _stats;
+    private KnowledgeBaseSettingsDto? _settings;
+    private string _search = string.Empty;
+    private string? _error;
+    private string? _status;
+    private bool _loading;
+    private bool _uploading;
+    private bool _dropZoneInitialized;
+    private Guid? _renamingId;
+    private string _renameText = string.Empty;
+    private DocumentDto? _metadataDocument;
+    private string _storageFolder = string.Empty;
+    private IReadOnlyList<string> _supportedTypes = [".pdf", ".docx", ".txt", ".md", ".markdown"];
+    private DotNetObjectReference<Knowledge>? _dotNetRef;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        NativeDrop.SetAcceptingDrops(true);
+        NativeDrop.SetFilesDroppedHandler(HandleNativePathsAsync);
+
+        if (NativeDrop.IsNativeDropAvailable)
+        {
+            NativeDrop.DragStateChanged += OnNativeDragStateChanged;
+            return;
+        }
+
+        _dotNetRef ??= DotNetObjectReference.Create(this);
+        var baseAddress = await ApiEndpointProvider.GetBaseAddressAsync();
+        await JS.InvokeVoidAsync(
+            "smartieKnowledgeDrop.init",
+            DropZoneId,
+            _dotNetRef,
+            BuildDropOptions(baseAddress));
+        _dropZoneInitialized = true;
+    }
+
+    private Task HandleNativePathsAsync(IReadOnlyList<string> paths) =>
+        InvokeAsync(async () =>
+        {
+            if (_uploading || paths.Count == 0)
+            {
+                return;
+            }
+
+            var uploads = new List<(string FileName, Stream Stream)>();
+            try
+            {
+                foreach (var path in paths)
+                {
+                    uploads.Add((Path.GetFileName(path), File.OpenRead(path)));
+                }
+
+                await UploadFilesAsync(uploads);
+            }
+            catch (Exception ex)
+            {
+                _error = ex.Message;
+                StateHasChanged();
+            }
+            finally
+            {
+                foreach (var (_, stream) in uploads)
+                {
+                    await stream.DisposeAsync();
+                }
+            }
+        });
+
+    private void OnNativeDragStateChanged(object? sender, bool isDragging)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("smartieKnowledgeDrop.setDragActive", DropZoneId, isDragging);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        });
+    }
+
+    [JSInvokable]
+    public async Task HandleDropUploadResultAsync(KnowledgeDropUploadResult result)
+    {
+        if (_uploading)
+        {
+            return;
+        }
+
+        _uploading = true;
+        _error = null;
+        _status = null;
+
+        try
+        {
+            if (result.UploadedCount > 0)
+            {
+                _status = result.UploadedCount == 1
+                    ? "Document uploaded."
+                    : $"{result.UploadedCount} documents uploaded.";
+                await LoadAsync();
+            }
+
+            var messages = new List<string>();
+            if (result.UnsupportedFiles.Length > 0)
+            {
+                messages.Add(FormatUnsupportedFilesMessage(result.UnsupportedFiles));
+            }
+
+            if (result.TooLargeFiles.Length > 0)
+            {
+                messages.Add(FormatTooLargeFilesMessage(result.TooLargeFiles));
+            }
+
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                messages.Add(result.Error);
+            }
+
+            if (messages.Count > 0)
+            {
+                _error = string.Join(" ", messages);
+            }
+            else if (result.UploadedCount == 0)
+            {
+                _error = "No documents were uploaded.";
+            }
+        }
+        finally
+        {
+            _uploading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task TriggerUploadAsync()
+    {
+        if (_uploading)
+        {
+            return;
+        }
+
+        if (FilePicker.IsNativePickerAvailable)
+        {
+            var picked = await FilePicker.PickFilesAsync(_supportedTypes);
+            if (picked.Count == 0)
+            {
+                return;
+            }
+
+            var uploads = new List<(string FileName, Stream Stream)>();
+            try
+            {
+                foreach (var file in picked)
+                {
+                    uploads.Add((file.FileName, file.Content));
+                }
+
+                await UploadFilesAsync(uploads);
+            }
+            finally
+            {
+                foreach (var file in picked)
+                {
+                    await file.DisposeAsync();
+                }
+            }
+
+            return;
+        }
+
+        await JS.InvokeVoidAsync("smartieChat.clickFileInput", "knowledge-upload-input");
+    }
+
+    private async Task OnFilesSelectedAsync(InputFileChangeEventArgs e)
+    {
+        var uploads = new List<(string FileName, Stream Stream)>();
+        try
+        {
+            foreach (var file in e.GetMultipleFiles(20))
+            {
+                uploads.Add((file.Name, file.OpenReadStream(maxAllowedSize: DefaultMaxFileSizeBytes)));
+            }
+
+            await UploadFilesAsync(uploads);
+        }
+        finally
+        {
+            foreach (var (_, stream) in uploads)
+            {
+                await stream.DisposeAsync();
+            }
+        }
+    }
+
+    private async Task UploadFilesAsync(
+        IReadOnlyList<(string FileName, Stream Stream)> files,
+        IReadOnlyList<string>? preRejectedUnsupported = null,
+        IReadOnlyList<string>? preRejectedTooLarge = null)
+    {
+        if (_uploading || files.Count == 0 && preRejectedUnsupported is not { Count: > 0 } && preRejectedTooLarge is not { Count: > 0 })
+        {
+            return;
+        }
+
+        _uploading = true;
+        _error = null;
+        _status = null;
+        var uploaded = 0;
+        var unsupported = preRejectedUnsupported?.ToList() ?? new List<string>();
+        var tooLarge = preRejectedTooLarge?.ToList() ?? new List<string>();
+
+        try
+        {
+            foreach (var (fileName, stream) in files)
+            {
+                var extension = Path.GetExtension(fileName);
+                if (!IsAllowedExtension(extension))
+                {
+                    unsupported.Add(fileName);
+                    continue;
+                }
+
+                await Api.UploadDocumentAsync(stream, fileName);
+                uploaded++;
+            }
+
+            ApplyUploadMessages(uploaded, unsupported, tooLarge);
+
+            if (uploaded > 0)
+            {
+                await LoadAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _uploading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ApplyUploadMessages(int uploaded, IReadOnlyList<string> unsupported, IReadOnlyList<string> tooLarge)
+    {
+        if (uploaded > 0)
+        {
+            _status = uploaded == 1 ? "Document uploaded." : $"{uploaded} documents uploaded.";
+        }
+
+        var messages = new List<string>();
+        if (unsupported.Count > 0)
+        {
+            messages.Add(FormatUnsupportedFilesMessage(unsupported));
+        }
+
+        if (tooLarge.Count > 0)
+        {
+            messages.Add(FormatTooLargeFilesMessage(tooLarge));
+        }
+
+        if (messages.Count > 0)
+        {
+            _error = string.Join(" ", messages);
+        }
+        else if (uploaded == 0)
+        {
+            _error = "No documents were uploaded.";
+        }
+    }
+
+    private bool IsAllowedExtension(string extension) =>
+        _supportedTypes.Any(type =>
+            string.Equals(type, extension, StringComparison.OrdinalIgnoreCase));
+
+    private static string FormatUnsupportedFilesMessage(IReadOnlyList<string> fileNames) =>
+        fileNames.Count == 1
+            ? $"\"{fileNames[0]}\" is not supported. Allowed types: PDF, DOCX, TXT, Markdown."
+            : $"{fileNames.Count} files were skipped because they are not supported ({string.Join(", ", fileNames)}). Allowed types: PDF, DOCX, TXT, Markdown.";
+
+    private static string FormatTooLargeFilesMessage(IReadOnlyList<string> fileNames) =>
+        fileNames.Count == 1
+            ? $"\"{fileNames[0]}\" exceeds the maximum file size."
+            : $"{fileNames.Count} files were skipped because they exceed the maximum file size ({string.Join(", ", fileNames)}).";
+
+    private object BuildDropOptions(Uri baseAddress) => new
+    {
+        allowedExtensions = _supportedTypes,
+        maxFileSizeBytes = _settings?.MaxFileSizeBytes ?? DefaultMaxFileSizeBytes,
+        apiBaseUrl = baseAddress.ToString().TrimEnd('/')
+    };
+
+    private async Task SyncDropZoneOptionsAsync()
+    {
+        if (!_dropZoneInitialized)
+        {
+            return;
+        }
+
+        var baseAddress = await ApiEndpointProvider.GetBaseAddressAsync();
+        await JS.InvokeVoidAsync("smartieKnowledgeDrop.updateOptions", DropZoneId, BuildDropOptions(baseAddress));
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _settings = await Api.GetKnowledgeBaseSettingsAsync();
+            _storageFolder = _settings.StorageFolder;
+            _supportedTypes = _settings.SupportedExtensions;
+            _stats = await Api.GetDocumentStatsAsync();
+            _documents = (await Api.GetDocumentsAsync(string.IsNullOrWhiteSpace(_search) ? null : _search)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load knowledge base: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+            await SyncDropZoneOptionsAsync();
+        }
+    }
+
+    private async Task HandleSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task OpenDocumentAsync(Guid id)
+    {
+        try
+        {
+            var uri = await Api.GetDocumentOpenUriAsync(id);
+            await JS.InvokeVoidAsync("smartieChat.openUrl", uri.ToString());
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not open document: {ex.Message}";
+        }
+    }
+
+    private void BeginRename(DocumentDto doc)
+    {
+        _renamingId = doc.Id;
+        _renameText = doc.Name;
+    }
+
+    private void CancelRename()
+    {
+        _renamingId = null;
+        _renameText = string.Empty;
+    }
+
+    private async Task HandleRenameKeyDown(KeyboardEventArgs e, Guid id)
+    {
+        if (e.Key == "Enter")
+        {
+            await SaveRenameAsync(id);
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelRename();
+        }
+    }
+
+    private async Task SaveRenameAsync(Guid id)
+    {
+        try
+        {
+            await Api.RenameDocumentAsync(id, _renameText);
+            CancelRename();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DeleteDocumentAsync(Guid id)
+    {
+        try
+        {
+            await Api.DeleteDocumentAsync(id);
+            _status = "Document deleted.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void ShowMetadata(DocumentDto doc) => _metadataDocument = doc;
+
+    private void CloseMetadata() => _metadataDocument = null;
+
+    private void ViewDocument(Guid id) => Navigation.NavigateTo($"/knowledge/document/{id}");
+
+    private static string GetExtractionBadgeClass(string status) =>
+        status switch
+        {
+            "Completed" => "is-extracted",
+            "Failed" => "is-failed",
+            "Extracting" => "is-extracting",
+            _ => "is-pending"
+        };
+
+    private static string GetExtractionCardLabel(DocumentDto doc) =>
+        doc.IsExtracted ? "Extracted" : doc.ExtractionStatusLabel switch
+        {
+            "Failed" => "Failed",
+            "Extracting" => "Extracting",
+            _ => "Not Extracted"
+        };
+
+    public async ValueTask DisposeAsync()
+    {
+        NativeDrop.SetAcceptingDrops(false);
+        NativeDrop.SetFilesDroppedHandler(null);
+        NativeDrop.DragStateChanged -= OnNativeDragStateChanged;
+
+        if (_dropZoneInitialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("smartieKnowledgeDrop.dispose", DropZoneId);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        _dotNetRef?.Dispose();
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+
+    private static string FormatRelativeTime(DateTimeOffset time)
+    {
+        var delta = DateTimeOffset.UtcNow - time.ToUniversalTime();
+        if (delta.TotalSeconds < 60)
+        {
+            return "just now";
+        }
+
+        if (delta.TotalMinutes < 60)
+        {
+            var minutes = (int)delta.TotalMinutes;
+            return minutes == 1 ? "1 min ago" : $"{minutes} min ago";
+        }
+
+        if (delta.TotalHours < 24)
+        {
+            var hours = (int)delta.TotalHours;
+            return hours == 1 ? "1 hr ago" : $"{hours} hr ago";
+        }
+
+        if (delta.TotalDays < 7)
+        {
+            var days = (int)delta.TotalDays;
+            return days == 1 ? "1 day ago" : $"{days} days ago";
+        }
+
+        return time.ToLocalTime().ToString("MMM d");
+    }
+}

@@ -1,0 +1,198 @@
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+@inject ThemeApplicator Theme
+
+@if (_visible)
+{
+    <div class="onboarding-backdrop">
+        <div class="onboarding-card dashboard-card">
+            @if (_step == 0)
+            {
+                <header class="onboarding-header">
+                    <p class="edition-badge">@SmartieAppInfo.DisplayTitle</p>
+                    <h1>Welcome to Smartie</h1>
+                    <p>Your local AI productivity OS. Everything stays on your device — no login, no cloud, no telemetry.</p>
+                </header>
+                <ul class="onboarding-features">
+                    <li>Chat with your choice of AI provider</li>
+                    <li>Build a personal Knowledge Base with RAG</li>
+                    <li>Tasks, memory, files, plugins, and automations</li>
+                </ul>
+            }
+            else if (_step == 1)
+            {
+                <header class="onboarding-header">
+                    <h1>Import Sample Documents</h1>
+                    <p>Try semantic search instantly with curated sample content.</p>
+                </header>
+                @if (_status is not null)
+                {
+                    <p class="onboarding-status">@_status</p>
+                }
+                @if (_error is not null)
+                {
+                    <p class="onboarding-error">@_error</p>
+                }
+                <ul class="onboarding-sample-list">
+                    <li>Smartie_Test_Document.md</li>
+                    <li>CompanyPolicy.md</li>
+                    <li>ASPNetNotes.md</li>
+                </ul>
+                <button type="button" class="btn-knowledge btn-knowledge-primary" disabled="@_busy" @onclick="ImportSamplesAsync">
+                    Import Sample Documents
+                </button>
+            }
+            else if (_step == 2)
+            {
+                <header class="onboarding-header">
+                    <h1>Choose Theme</h1>
+                    <p>Pick a look that fits your workspace. You can change this anytime in Settings.</p>
+                </header>
+                <div class="onboarding-theme-grid">
+                    @foreach (var theme in ThemeOptions)
+                    {
+                        <button type="button"
+                                class="onboarding-theme-btn @(_selectedTheme == theme.Key ? "is-active" : null)"
+                                @onclick="() => SelectThemeAsync(theme.Key)">
+                            @theme.Label
+                        </button>
+                    }
+                </div>
+            }
+            else if (_step == 3)
+            {
+                <header class="onboarding-header">
+                    <h1>Configure AI Provider</h1>
+                    <p>Add your API key in Settings, or use Ollama for fully local models.</p>
+                </header>
+                <p class="onboarding-note">You can finish setup now and configure providers when you're ready.</p>
+                <button type="button" class="btn-knowledge" @onclick="OpenSettings">Open AI Settings</button>
+            }
+            else
+            {
+                <header class="onboarding-header">
+                    <h1>You're all set</h1>
+                    <p>Explore the dashboard, upload documents, or start a chat.</p>
+                </header>
+                <div class="onboarding-final-actions">
+                    <button type="button" class="btn-knowledge btn-knowledge-primary" @onclick="OpenDashboard">Go to Dashboard</button>
+                    <button type="button" class="btn-knowledge" @onclick="OpenKnowledge">Open Knowledge Base</button>
+                </div>
+            }
+
+            <footer class="onboarding-footer">
+                @if (_step > 0 && _step < 5)
+                {
+                    <button type="button" class="btn-table" @onclick="Back">Back</button>
+                }
+                <div class="onboarding-footer-spacer"></div>
+                @if (_step < 4)
+                {
+                    <button type="button" class="btn-table" @onclick="SkipAsync">Skip</button>
+                    <button type="button" class="btn-knowledge btn-knowledge-primary" @onclick="NextAsync">Continue</button>
+                }
+                else if (_step == 4)
+                {
+                    <button type="button" class="btn-knowledge btn-knowledge-primary" @onclick="FinishAsync">Get Started</button>
+                }
+            </footer>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _visible;
+    private int _step;
+    private bool _busy;
+    private string? _status;
+    private string? _error;
+    private string _selectedTheme = "Default";
+
+    private static readonly (string Key, string Label)[] ThemeOptions =
+    [
+        ("Default", "Default"),
+        ("Dark", "Dark"),
+        ("Light", "Light"),
+        ("Midnight", "Midnight"),
+        ("OledBlack", "OLED")
+    ];
+
+    public async Task TryShowAsync()
+    {
+        try
+        {
+            var status = await Api.GetOnboardingStatusAsync();
+            _visible = !status.HasCompletedOnboarding;
+        }
+        catch
+        {
+            _visible = false;
+        }
+    }
+
+    private void NextAsync()
+    {
+        _step = Math.Min(_step + 1, 4);
+    }
+
+    private void Back()
+    {
+        _step = Math.Max(_step - 1, 0);
+    }
+
+    private async Task SkipAsync() => await FinishAsync();
+
+    private async Task FinishAsync()
+    {
+        try
+        {
+            await Api.CompleteOnboardingAsync();
+        }
+        catch
+        {
+            // Still hide if API fails locally.
+        }
+
+        _visible = false;
+    }
+
+    private async Task ImportSamplesAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Api.ImportSampleDocumentsAsync();
+            _status = result.ImportedCount > 0
+                ? $"Imported {result.ImportedCount} sample document(s)."
+                : "Sample documents are already in your Knowledge Base.";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SelectThemeAsync(string theme)
+    {
+        _selectedTheme = theme;
+        try
+        {
+            var updated = await Api.UpdateAppearanceSettingsAsync(new UpdateAppearanceSettingsRequest(
+                theme, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null));
+            await Theme.ApplyAsync(updated);
+        }
+        catch
+        {
+            // Theme selection is best-effort during onboarding.
+        }
+    }
+
+    private void OpenSettings() => Navigation.NavigateTo("/settings");
+    private void OpenDashboard() => Navigation.NavigateTo("/");
+    private void OpenKnowledge() => Navigation.NavigateTo("/knowledge");
+}

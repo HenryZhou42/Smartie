@@ -2,21 +2,21 @@
 
 @if (IsVisible)
 {
-    <div class="confirm-backdrop"
+    <div class="smartie-dialog-backdrop confirm-backdrop"
          role="presentation"
          @ref="_backdrop"
          tabindex="-1"
          @onkeydown="HandleKeyDownAsync">
-        <div class="confirm-dialog"
+        <div class="smartie-dialog confirm-dialog"
              role="dialog"
              aria-modal="true"
              aria-labelledby="@_titleId"
              aria-describedby="@_bodyId">
-            <h2 class="confirm-title" id="@_titleId">@Title</h2>
-            <p class="confirm-body" id="@_bodyId">@Body</p>
-            <div class="confirm-actions">
-                <button type="button" class="btn-secondary" @onclick="HandleCancelAsync">@CancelText</button>
-                <button type="button" class="btn-primary" @onclick="HandleConfirmAsync">@ConfirmText</button>
+            <h2 class="smartie-card-title confirm-title" id="@_titleId">@Title</h2>
+            <p class="smartie-caption confirm-body" id="@_bodyId">@Body</p>
+            <div class="smartie-dialog-footer confirm-actions">
+                <SmartieButton Variant="SmartieButtonVariant.Secondary" @onclick="HandleCancelAsync">@CancelText</SmartieButton>
+                <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="HandleConfirmAsync">@ConfirmText</SmartieButton>
             </div>
         </div>
     </div>

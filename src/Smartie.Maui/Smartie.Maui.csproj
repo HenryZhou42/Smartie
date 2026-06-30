@@ -1,63 +1,87 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
-        <!-- Windows-only desktop build. Re-add android/ios/maccatalyst here once those SDKs are installed. -->
-        <TargetFrameworks>net9.0-windows10.0.19041.0</TargetFrameworks>
-        <!-- Uncomment to also build the tizen app. You will need to install tizen by following this: https://github.com/Samsung/Tizen.NET -->
-        <!-- <TargetFrameworks>$(TargetFrameworks);net9.0-tizen</TargetFrameworks> -->
-
-        <!-- Note for MacCatalyst:
-            The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
-            When specifying both architectures, use the plural <RuntimeIdentifiers> instead of the singular <RuntimeIdentifier>.
-            The Mac App Store will NOT accept apps with ONLY maccatalyst-arm64 indicated;
-            either BOTH runtimes must be indicated or ONLY macatalyst-x64. -->
-        <!-- For example: <RuntimeIdentifiers>maccatalyst-x64;maccatalyst-arm64</RuntimeIdentifiers> -->
-
+        <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
         <OutputType>Exe</OutputType>
         <RootNamespace>Smartie.Maui</RootNamespace>
+        <AssemblyName>Smartie</AssemblyName>
         <UseMaui>true</UseMaui>
         <SingleProject>true</SingleProject>
         <ImplicitUsings>enable</ImplicitUsings>
         <EnableDefaultCssItems>false</EnableDefaultCssItems>
         <Nullable>enable</Nullable>
 
-        <!-- Display name -->
-        <ApplicationTitle>Smartie.Maui</ApplicationTitle>
+        <ApplicationTitle>$(SmartieApplicationTitle)</ApplicationTitle>
+        <ApplicationId>$(SmartiePackageIdentity)</ApplicationId>
+        <ApplicationDisplayVersion>$(SmartieVersion)</ApplicationDisplayVersion>
+        <Version>$(SmartieVersion)</Version>
+        <AssemblyVersion>$(AssemblyVersion)</AssemblyVersion>
+        <FileVersion>$(FileVersion)</FileVersion>
+        <InformationalVersion>$(InformationalVersion)</InformationalVersion>
 
-        <!-- App Identifier -->
-        <ApplicationId>com.companyname.smartie.maui</ApplicationId>
+        <!-- Default: unpackaged portable EXE. MSIX publish profile sets WindowsPackageType=MSIX. -->
+        <WindowsPackageType Condition="'$(WindowsPackageType)' == ''">None</WindowsPackageType>
+        <!-- MAUI defaults to self-contained for unpackaged WinExe; disable until publish sets Platform/RID (see publish profiles). -->
+        <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
+        <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+        <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+        <!-- Debug/F5 must run the RID output (win-x64); the parent output folder lacks WebView2 native assets and BlazorWebView hangs. -->
+        <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">win-x64</RuntimeIdentifier>
+        <!-- Smartie.Api is embedded in-process (LocalSmartieApiHost), not launched as a separate exe from publish output. -->
+        <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
 
-        <!-- Versions -->
-        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-        <ApplicationVersion>1</ApplicationVersion>
-
-        <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
-        <WindowsPackageType>None</WindowsPackageType>
-
-        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
-        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
-        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
-        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\img\smartie.png" BaseSize="1254,1254" />
-
-        <!-- Splash Screen -->
-        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
-
-        <!-- Images -->
+        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#7C5CFF" />
+        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#7C5CFF" BaseSize="128,128" />
         <MauiImage Include="Resources\Images\*" />
         <MauiImage Update="Resources\Images\dotnet_bot.svg" BaseSize="168,208" />
-
-        <!-- Custom Fonts -->
         <MauiFont Include="Resources\Fonts\*" />
-
-        <!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
         <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="..\..\TestData\**\*.*">
+            <Link>SampleData\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Include="..\..\plugins\ExamplePlugin\manifest.json">
+            <Link>Plugins\ExamplePlugin\manifest.json</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Include="..\..\plugins\ExamplePlugin\README.md">
+            <Link>Plugins\ExamplePlugin\README.md</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Include="..\..\README.md">
+            <Link>Docs\README.md</Link>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Include="..\..\LICENSE">
+            <Link>Docs\LICENSE</Link>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Include="..\..\docs\Packaging.md" Condition="Exists('..\..\docs\Packaging.md')">
+            <Link>Docs\Packaging.md</Link>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+    </ItemGroup>
+
+    <!-- Never ship development secrets or user-local config -->
+    <ItemGroup>
+        <Content Remove="appsettings.Development.json" />
+        <None Remove="appsettings.Development.json" />
     </ItemGroup>
 
     <ItemGroup>
@@ -77,8 +101,63 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Smartie.Api\Smartie.Api.csproj" />
+        <ProjectReference Include="..\Smartie.Api\Smartie.Api.csproj">
+            <!-- Api is embedded in-process; do not inherit Maui's self-contained publish settings. -->
+            <GlobalPropertiesToRemove>SelfContained</GlobalPropertiesToRemove>
+        </ProjectReference>
         <ProjectReference Include="..\Smartie.Shared\Smartie.Shared.csproj" />
     </ItemGroup>
+
+    <Target Name="CopyExamplePluginToOutput" AfterTargets="Build">
+        <PropertyGroup>
+            <_ExamplePluginSource>$(MSBuildThisFileDirectory)..\..\plugins\ExamplePlugin\</_ExamplePluginSource>
+            <_ExamplePluginOut>$(OutputPath)Plugins\ExamplePlugin\</_ExamplePluginOut>
+        </PropertyGroup>
+        <MakeDir Directories="$(_ExamplePluginOut)" />
+        <ItemGroup>
+            <_PluginFiles Include="$(_ExamplePluginSource)**\*.*" Condition="Exists('$(_ExamplePluginSource)')" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_PluginFiles)" DestinationFiles="@(_PluginFiles->'$(_ExamplePluginOut)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(_PluginFiles)' != ''" />
+    </Target>
+
+    <Target Name="CopyExamplePluginToPublish" AfterTargets="Publish" Condition="'$(PublishDir)' != ''">
+        <PropertyGroup>
+            <_PublishPluginOut>$(PublishDir)Plugins\ExamplePlugin\</_PublishPluginOut>
+        </PropertyGroup>
+        <MakeDir Directories="$(_PublishPluginOut)" />
+        <ItemGroup>
+            <_PublishPluginFiles Include="$(OutputPath)Plugins\ExamplePlugin\**\*.*" Condition="Exists('$(OutputPath)Plugins\ExamplePlugin')" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_PublishPluginFiles)" DestinationFiles="@(_PublishPluginFiles->'$(_PublishPluginOut)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(_PublishPluginFiles)' != ''" />
+    </Target>
+
+    <!-- VS/RID builds can emit Smartie.exe under obj/bin/win-x64 while wwwroot stays in the parent folder. -->
+    <Target Name="CopyWwwRootToRidOutput" AfterTargets="Build" Condition="Exists('$(OutputPath)wwwroot\index.html')">
+        <ItemGroup>
+            <_WwwRootSourceFiles Include="$(OutputPath)wwwroot\**\*.*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_WwwRootSourceFiles)"
+              DestinationFiles="@(_WwwRootSourceFiles->'$(OutputPath)win-x64\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)win-x64') and !Exists('$(OutputPath)win-x64\wwwroot\index.html')" />
+        <Copy SourceFiles="@(_WwwRootSourceFiles)"
+              DestinationFiles="@(_WwwRootSourceFiles->'$(OutputPath)win10-x64\wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)win10-x64') and !Exists('$(OutputPath)win10-x64\wwwroot\index.html')" />
+    </Target>
+
+    <!-- VS "Any CPU" F5 runs Smartie.exe from the parent output folder; sync RID build output there. -->
+    <Target Name="SyncWinX64OutputToParent" AfterTargets="Build"
+            Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' and '$(RuntimeIdentifier)' == 'win-x64' and $(OutputPath.Contains('win-x64'))">
+        <PropertyGroup>
+            <_ParentOutputPath>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\$(OutputPath)..\'))</_ParentOutputPath>
+        </PropertyGroup>
+        <ItemGroup>
+            <_RidOutputFiles Include="$(OutputPath)\**\*.*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_RidOutputFiles)"
+              DestinationFiles="@(_RidOutputFiles->'$(_ParentOutputPath)%(RecursiveDir)%(Filename)%(Extension)')"
+              SkipUnchangedFiles="true" />
+    </Target>
 
 </Project>

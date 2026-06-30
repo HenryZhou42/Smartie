@@ -29,4 +29,8 @@ public sealed record DocumentStats(
     int ExtractedCount,
     long TotalExtractedCharacters,
     DateTimeOffset? LastExtractedAt,
-    string? LastExtractorUsed);
+    string? LastExtractorUsed,
+    int ChunkedCount,
+    int TotalChunkCount,
+    int EmbeddedDocumentCount,
+    int TotalEmbeddedChunkCount);

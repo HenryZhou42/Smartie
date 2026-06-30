@@ -1,0 +1,6 @@
+<Project>
+  <!-- Visual Studio MAUI publish restores dependencies with the app TFM (dotnet/maui#27541). -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' != 'Smartie.Maui' and '$(MSBuildProjectName)' != 'Smartie.Web'">
+    <TargetFrameworks>net9.0;net9.0-windows10.0.19041.0</TargetFrameworks>
+  </PropertyGroup>
+</Project>

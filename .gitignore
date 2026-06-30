@@ -11,6 +11,14 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Release artifacts
+dist/
+publish/
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+
 # Visual Studio / Rider
 .vs/
 .idea/
@@ -41,8 +49,28 @@ coverage/
 
 # User secrets / local config (never commit API keys)
 appsettings.*.local.json
+appsettings.Development.json
 secrets.json
+apikeys.json
 *.env
+.env
+.env.local
+
+# Local user data (never commit)
+KnowledgeBase/
+ChatAttachments/
+Documents/
+Memory/
+Tasks/
+Plugins/
+Logs/
+Cache/
+AutomationExports/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 
 # OS files
 .DS_Store

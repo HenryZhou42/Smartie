@@ -1,7 +1,21 @@
 <Router AppAssembly="@typeof(MauiProgram).Assembly"
         AdditionalAssemblies="new[] { typeof(Smartie.Shared.Pages.Chat).Assembly }">
     <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Smartie.Shared.Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        <ErrorBoundary>
+            <ChildContent>
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(Smartie.Shared.Layout.MainLayout)" />
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </ChildContent>
+            <ErrorContent Context="exception">
+                <div class="smartie-shell" style="padding: 2rem;">
+                    <h1 style="color: #f85149; margin-top: 0;">Smartie failed to load</h1>
+                    <p style="color: #e6e8ee;">@exception.Message</p>
+                    <p style="color: #8b91a3;">Check Visual Studio Output (Debug) for details. The local API may still be starting — try again in a few seconds.</p>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
     </Found>
+    <NotFound>
+        <RouteView RouteData="@(new RouteData(typeof(Smartie.Shared.Pages.NotFound), new Dictionary<string, object?>()))" DefaultLayout="@typeof(Smartie.Shared.Layout.MainLayout)" />
+    </NotFound>
 </Router>

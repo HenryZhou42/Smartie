@@ -1,14 +1,39 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:local="clr-namespace:Smartie.Maui"
              xmlns:components="clr-namespace:Smartie.Maui.Components"
-             x:Class="Smartie.Maui.MainPage">
+             x:Class="Smartie.Maui.MainPage"
+             BackgroundColor="#12141b">
 
-    <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
-        <BlazorWebView.RootComponents>
-            <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
-        </BlazorWebView.RootComponents>
-    </BlazorWebView>
+    <Grid RowDefinitions="*">
+        <BlazorWebView x:Name="blazorWebView"
+                       Grid.Row="0"
+                       HostPage="wwwroot/index.html"
+                       HorizontalOptions="Fill"
+                       VerticalOptions="Fill">
+            <BlazorWebView.RootComponents>
+                <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
+            </BlazorWebView.RootComponents>
+        </BlazorWebView>
+
+        <Grid x:Name="startupOverlay"
+              Grid.Row="0"
+              BackgroundColor="#12141b"
+              InputTransparent="False">
+            <VerticalStackLayout HorizontalOptions="Center"
+                                 VerticalOptions="Center"
+                                 Spacing="12">
+                <ActivityIndicator IsRunning="True"
+                                   Color="#7C5CFF"
+                                   WidthRequest="32"
+                                   HeightRequest="32" />
+                <Label x:Name="startupStatusLabel"
+                       Text="Starting Smartie…"
+                       TextColor="#E6E8EE"
+                       FontSize="16"
+                       HorizontalTextAlignment="Center" />
+            </VerticalStackLayout>
+        </Grid>
+    </Grid>
 
 </ContentPage>

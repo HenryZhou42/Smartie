@@ -1,0 +1,382 @@
+@inject SmartieApiClient Api
+@inject ThemeApplicator Theme
+
+<section class="settings-knowledge" id="appearance">
+    <header class="settings-header">
+        <h1>Appearance</h1>
+        <p>Customize Smartie's look and feel. Changes apply instantly — no restart required.</p>
+    </header>
+
+    @if (_settings is null || _options is null)
+    {
+        <div class="settings-loading">@(_error ?? "Loading…")</div>
+    }
+    else
+    {
+        <div class="appearance-grid">
+            <div class="provider-card knowledge-settings-card appearance-card smartie-card">
+                <h2 class="appearance-card-title">Theme & Accent</h2>
+                <span class="appearance-field-label">Theme</span>
+                <div class="appearance-swatches">
+                    @foreach (var theme in _options.Themes)
+                    {
+                        <button type="button"
+                                class="appearance-swatch @(_settings.Theme == theme ? "active" : string.Empty)"
+                                title="@theme"
+                                @onclick="() => UpdateAsync(new UpdateAppearanceSettingsRequest(theme, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null))">
+                            <span class="appearance-swatch-fill theme-@theme.ToLowerInvariant()"></span>
+                            <span class="appearance-swatch-label">@FormatThemeLabel(theme)</span>
+                        </button>
+                    }
+                </div>
+                <span class="appearance-field-label">Accent</span>
+                <div class="appearance-accent-pills">
+                    @foreach (var accent in _options.AccentColors.Where(a => !a.Equals("Custom", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        <button type="button"
+                                class="appearance-accent-pill accent-@accent.ToLowerInvariant() @(_settings.AccentColor == accent ? "active" : string.Empty)"
+                                title="@accent"
+                                @onclick="() => SelectAccentAsync(accent)">
+                        </button>
+                    }
+                    <button type="button"
+                            class="appearance-accent-pill accent-custom @(_settings.AccentColor.Equals("Custom", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)"
+                            title="Custom"
+                            @onclick='() => SelectAccentAsync("Custom")'>
+                    </button>
+                </div>
+                @if (_accentDraft.Equals("Custom", StringComparison.OrdinalIgnoreCase))
+                {
+                    <input class="settings-inline-input smartie-input" type="text" placeholder="#7c5cff" @bind="_customAccentDraft" @bind:after="SaveAccentAsync" />
+                }
+                <span class="appearance-field-label">Density</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.Densities)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.Density == option ? "active" : string.Empty)"
+                                @onclick="() => SelectDensityAsync(option)">
+                            @option
+                        </button>
+                    }
+                </div>
+                <span class="appearance-field-label">Font size</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.FontSizes)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.FontSize == option ? "active" : string.Empty)"
+                                @onclick="() => SelectFontSizeAsync(option)">
+                            @option
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="provider-card knowledge-settings-card appearance-card appearance-preview-card smartie-card">
+                <h2 class="appearance-card-title">Live Preview</h2>
+                <div class="appearance-preview-shell">
+                    <div class="appearance-preview-sidebar">
+                        <span class="appearance-preview-dot"></span>
+                        <span class="appearance-preview-line"></span>
+                        <span class="appearance-preview-line short"></span>
+                    </div>
+                    <div class="appearance-preview-main">
+                        <div class="appearance-preview-bubble user">Hello Smartie</div>
+                        <div class="appearance-preview-bubble assistant">Your theme updates instantly.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="provider-card knowledge-settings-card appearance-card smartie-card">
+                <h2 class="appearance-card-title">Sidebar & Window</h2>
+                <span class="appearance-field-label">Sidebar</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.SidebarModes)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.SidebarMode == option ? "active" : string.Empty)"
+                                @onclick="() => SelectSidebarAsync(option)">
+                            @FormatSidebar(option)
+                        </button>
+                    }
+                </div>
+                <span class="appearance-field-label">Animations</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.AnimationModes)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.AnimationMode == option ? "active" : string.Empty)"
+                                @onclick="() => SelectAnimationAsync(option)">
+                            @FormatAnimation(option)
+                        </button>
+                    }
+                </div>
+                <span class="appearance-field-label">Window effects</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.WindowEffects)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.WindowEffect == option ? "active" : string.Empty)"
+                                @onclick="() => SelectWindowEffectAsync(option)">
+                            @option
+                        </button>
+                    }
+                </div>
+                <label class="settings-inline-check smartie-check">
+                    <input type="checkbox" @bind="_transparencyDraft" @bind:after="SaveTransparencyAsync" />
+                    Transparency
+                </label>
+            </div>
+
+            <div class="provider-card knowledge-settings-card appearance-card smartie-card">
+                <h2 class="appearance-card-title">Chat Appearance</h2>
+                <span class="appearance-field-label">Bubble radius</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.BubbleRadii)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.BubbleRadius == option ? "active" : string.Empty)"
+                                @onclick="() => SelectBubbleRadiusAsync(option)">
+                            @option
+                        </button>
+                    }
+                </div>
+                <span class="appearance-field-label">Bubble width</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.BubbleWidths)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.BubbleWidth == option ? "active" : string.Empty)"
+                                @onclick="() => SelectBubbleWidthAsync(option)">
+                            @option
+                        </button>
+                    }
+                </div>
+                <span class="appearance-field-label">Message spacing</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.MessageSpacings)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.MessageSpacing == option ? "active" : string.Empty)"
+                                @onclick="() => SelectMessageSpacingAsync(option)">
+                            @option
+                        </button>
+                    }
+                </div>
+                <span class="appearance-field-label">Code blocks</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.CodeBlockThemes)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.CodeBlockTheme == option ? "active" : string.Empty)"
+                                @onclick="() => SelectCodeThemeAsync(option)">
+                            @option
+                        </button>
+                    }
+                </div>
+                <span class="appearance-field-label">Markdown</span>
+                <div class="appearance-option-chips">
+                    @foreach (var option in _options.MarkdownThemes)
+                    {
+                        <button type="button"
+                                class="appearance-option-chip @(_settings.MarkdownTheme == option ? "active" : string.Empty)"
+                                @onclick="() => SelectMarkdownThemeAsync(option)">
+                            @option
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="provider-card knowledge-settings-card appearance-card smartie-card">
+                <h2 class="appearance-card-title">Motion</h2>
+                <div class="memory-settings-actions appearance-actions">
+                    <label class="settings-inline-range">
+                        Typing speed
+                        <input type="range" min="5" max="120" step="5" @bind="_typingSpeedDraft" @bind:after="SaveMotionAsync" />
+                        <span>@_typingSpeedDraft ms</span>
+                    </label>
+                    <label class="settings-inline-range">
+                        Transition speed
+                        <input type="range" min="0" max="600" step="25" @bind="_transitionSpeedDraft" @bind:after="SaveMotionAsync" />
+                        <span>@_transitionSpeedDraft ms</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public EventCallback<string> StatusChanged { get; set; }
+
+    private AppearanceSettingsDto? _settings;
+    private AppearanceOptionsDto? _options;
+    private string? _error;
+    private string _accentDraft = "Purple";
+    private string _customAccentDraft = "#7c5cff";
+    private string _densityDraft = "Default";
+    private string _fontSizeDraft = "Medium";
+    private string _sidebarDraft = "Expanded";
+    private string _animationDraft = "Enabled";
+    private string _windowEffectDraft = "Disabled";
+    private bool _transparencyDraft;
+    private string _bubbleRadiusDraft = "Medium";
+    private string _bubbleWidthDraft = "Standard";
+    private string _messageSpacingDraft = "Normal";
+    private string _codeThemeDraft = "Default";
+    private string _markdownThemeDraft = "Default";
+    private int _typingSpeedDraft = 20;
+    private int _transitionSpeedDraft = 200;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _settings = await Api.GetAppearanceSettingsAsync();
+            _options = await Api.GetAppearanceOptionsAsync();
+            SyncDrafts(_settings);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void SyncDrafts(AppearanceSettingsDto settings)
+    {
+        _accentDraft = settings.AccentColor;
+        _customAccentDraft = settings.CustomAccentHex ?? "#7c5cff";
+        _densityDraft = settings.Density;
+        _fontSizeDraft = settings.FontSize;
+        _sidebarDraft = settings.SidebarMode;
+        _animationDraft = settings.AnimationMode;
+        _windowEffectDraft = settings.WindowEffect;
+        _transparencyDraft = settings.TransparencyEnabled;
+        _bubbleRadiusDraft = settings.BubbleRadius;
+        _bubbleWidthDraft = settings.BubbleWidth;
+        _messageSpacingDraft = settings.MessageSpacing;
+        _codeThemeDraft = settings.CodeBlockTheme;
+        _markdownThemeDraft = settings.MarkdownTheme;
+        _typingSpeedDraft = settings.TypingSpeedMs;
+        _transitionSpeedDraft = settings.TransitionSpeedMs;
+    }
+
+    private async Task UpdateAsync(UpdateAppearanceSettingsRequest request)
+    {
+        try
+        {
+            _settings = await Api.UpdateAppearanceSettingsAsync(request);
+            SyncDrafts(_settings);
+            await Theme.ApplyAsync(_settings);
+            await StatusChanged.InvokeAsync("Appearance updated.");
+        }
+        catch (Exception ex)
+        {
+            await StatusChanged.InvokeAsync(ex.Message);
+        }
+    }
+
+    private Task SaveAccentAsync() =>
+        UpdateAsync(new UpdateAppearanceSettingsRequest(
+            null, _accentDraft,
+            _accentDraft.Equals("Custom", StringComparison.OrdinalIgnoreCase) ? _customAccentDraft : null,
+            null, null, null, null, null, null, null, null, null, null, null, null, null));
+
+    private Task SaveDensityAsync() => UpdateAsync(new UpdateAppearanceSettingsRequest(null, null, null, _densityDraft, null, null, null, null, null, null, null, null, null, null, null, null));
+    private Task SaveFontSizeAsync() => UpdateAsync(new UpdateAppearanceSettingsRequest(null, null, null, null, _fontSizeDraft, null, null, null, null, null, null, null, null, null, null, null));
+    private Task SaveSidebarAsync() => UpdateAsync(new UpdateAppearanceSettingsRequest(null, null, null, null, null, _sidebarDraft, null, null, null, null, null, null, null, null, null, null));
+    private Task SaveAnimationAsync() => UpdateAsync(new UpdateAppearanceSettingsRequest(null, null, null, null, null, null, _animationDraft, null, null, null, null, null, null, null, null, null));
+    private Task SaveWindowEffectAsync() => UpdateAsync(new UpdateAppearanceSettingsRequest(null, null, null, null, null, null, null, null, _windowEffectDraft, null, null, null, null, null, null, null));
+    private Task SaveTransparencyAsync() => UpdateAsync(new UpdateAppearanceSettingsRequest(null, null, null, null, null, null, null, _transparencyDraft, null, null, null, null, null, null, null, null));
+    private Task SaveChatAppearanceAsync() => UpdateAsync(new UpdateAppearanceSettingsRequest(null, null, null, null, null, null, null, null, null, null, null, _bubbleRadiusDraft, _bubbleWidthDraft, _messageSpacingDraft, _codeThemeDraft, _markdownThemeDraft));
+    private Task SaveMotionAsync() => UpdateAsync(new UpdateAppearanceSettingsRequest(null, null, null, null, null, null, null, null, null, _typingSpeedDraft, _transitionSpeedDraft, null, null, null, null, null));
+
+    private Task SelectAccentAsync(string accent)
+    {
+        _accentDraft = accent;
+        return SaveAccentAsync();
+    }
+
+    private Task SelectDensityAsync(string density)
+    {
+        _densityDraft = density;
+        return SaveDensityAsync();
+    }
+
+    private Task SelectFontSizeAsync(string fontSize)
+    {
+        _fontSizeDraft = fontSize;
+        return SaveFontSizeAsync();
+    }
+
+    private Task SelectSidebarAsync(string sidebar)
+    {
+        _sidebarDraft = sidebar;
+        return SaveSidebarAsync();
+    }
+
+    private Task SelectAnimationAsync(string animation)
+    {
+        _animationDraft = animation;
+        return SaveAnimationAsync();
+    }
+
+    private Task SelectWindowEffectAsync(string effect)
+    {
+        _windowEffectDraft = effect;
+        return SaveWindowEffectAsync();
+    }
+
+    private Task SelectBubbleRadiusAsync(string value)
+    {
+        _bubbleRadiusDraft = value;
+        return SaveChatAppearanceAsync();
+    }
+
+    private Task SelectBubbleWidthAsync(string value)
+    {
+        _bubbleWidthDraft = value;
+        return SaveChatAppearanceAsync();
+    }
+
+    private Task SelectMessageSpacingAsync(string value)
+    {
+        _messageSpacingDraft = value;
+        return SaveChatAppearanceAsync();
+    }
+
+    private Task SelectCodeThemeAsync(string value)
+    {
+        _codeThemeDraft = value;
+        return SaveChatAppearanceAsync();
+    }
+
+    private Task SelectMarkdownThemeAsync(string value)
+    {
+        _markdownThemeDraft = value;
+        return SaveChatAppearanceAsync();
+    }
+
+    private static string FormatThemeLabel(string theme) => theme switch
+    {
+        "OledBlack" => "OLED",
+        _ => theme
+    };
+
+    private static string FormatAccent(string accent) => accent;
+    private static string FormatSidebar(string mode) => mode switch
+    {
+        "IconsOnly" => "Icons only",
+        _ => mode
+    };
+
+    private static string FormatAnimation(string mode) => mode switch
+    {
+        "ReducedMotion" => "Reduced motion",
+        "Disabled" => "Disable animations",
+        _ => "Enable animations"
+    };
+}

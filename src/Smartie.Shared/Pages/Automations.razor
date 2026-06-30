@@ -1,0 +1,324 @@
+@page "/automations"
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Smartie · Automations</PageTitle>
+
+<div class="automations-page">
+    <header class="automations-header">
+        <div>
+            <h1>Automations</h1>
+            <p>Schedule and repeat local workflows — Community Edition stays entirely on your device. No cloud execution.</p>
+        </div>
+        <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="ShowCreateDialog">Create Automation</SmartieButton>
+    </header>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="automations-error">@_error</div>
+    }
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="automations-status">@_status</div>
+    }
+
+    @if (_stats is not null)
+    {
+        <dl class="smartie-stat-grid automations-summary-list">
+            <SmartieStatCard Label="Enabled" Value="@_stats.EnabledCount.ToString()" />
+            <SmartieStatCard Label="Disabled" Value="@_stats.DisabledCount.ToString()" />
+            <SmartieStatCard Label="Upcoming" Value="@_stats.UpcomingRuns.Count.ToString()" />
+            <SmartieStatCard Label="Recent Runs" Value="@_stats.RecentRuns.Count.ToString()" />
+        </dl>
+    }
+
+    @if (_developer is not null)
+    {
+        <SmartieDevPanel>
+            <dl class="smartie-stat-grid">
+                <SmartieStatCard Label="Execution time" Value="@($"{_developer.TotalExecutionTimeMs} ms")" />
+                <SmartieStatCard Label="Failures" Value="@_developer.FailureCount.ToString()" />
+                <SmartieStatCard Label="Success rate" Value="@($"{_developer.SuccessRatePercent:0}%")" />
+            </dl>
+        </SmartieDevPanel>
+    }
+
+    @if (_loading)
+    {
+        <div class="automations-loading">Loading automations…</div>
+    }
+    else if (_automations.Count == 0)
+    {
+        <SmartieEmptyState Icon="⚡"
+                           Title="No automations yet"
+                           Subtitle="Create your first workflow or enable the example templates.">
+            <Action>
+                <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="ShowCreateDialog">Create Automation</SmartieButton>
+            </Action>
+        </SmartieEmptyState>
+    }
+    else
+    {
+        <div class="automations-grid">
+            @foreach (var automation in _automations)
+            {
+                <article class="dashboard-card automation-card @(automation.Enabled ? "enabled" : "disabled")">
+                    <header class="automation-card-header">
+                        <h3>@automation.Name</h3>
+                        <span class="automation-badge @(automation.Enabled ? "on" : "off")">@(automation.Enabled ? "Enabled" : "Disabled")</span>
+                    </header>
+                    <p class="automation-description">@automation.Description</p>
+                    <dl class="automation-meta">
+                        <div><dt>Trigger</dt><dd>@FormatTrigger(automation.TriggerType)</dd></div>
+                        <div><dt>Action</dt><dd>@FormatAction(automation.ActionType)</dd></div>
+                        <div><dt>Runs</dt><dd>@automation.RunCount</dd></div>
+                        @if (automation.NextRun is not null)
+                        {
+                            <div><dt>Next run</dt><dd>@FormatWhen(automation.NextRun.Value)</dd></div>
+                        }
+                        @if (automation.LastRun is not null)
+                        {
+                            <div><dt>Last run</dt><dd>@FormatWhen(automation.LastRun.Value)</dd></div>
+                        }
+                    </dl>
+                    <footer class="automation-card-footer">
+                        <button type="button" class="btn-table" @onclick="() => RunNowAsync(automation.Id)">Run Now</button>
+                        <button type="button" class="btn-table" @onclick="() => EditAutomation(automation)">Edit</button>
+                        @if (automation.Enabled)
+                        {
+                            <button type="button" class="btn-table" @onclick="() => DisableAsync(automation.Id)">Disable</button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn-table" @onclick="() => EnableAsync(automation.Id)">Enable</button>
+                        }
+                        <button type="button" class="btn-table btn-table-danger" @onclick="() => DeleteAsync(automation.Id)">Delete</button>
+                    </footer>
+                </article>
+            }
+        </div>
+
+        @if (_stats?.RecentRuns.Count > 0)
+        {
+            <section class="dashboard-card automations-logs">
+                <h2 class="card-title">Recent Runs</h2>
+                <ul class="automations-log-list">
+                    @foreach (var log in _stats.RecentRuns)
+                    {
+                        <li class="automations-log-item @GetLogClass(log.Status)">
+                            <span class="automations-log-name">@log.AutomationName</span>
+                            <span class="automations-log-message">@log.Message</span>
+                            <span class="automations-log-meta">@log.Status · @log.DurationMs ms · @FormatWhen(log.StartedAt)</span>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    }
+</div>
+
+<AutomationBuilderDialog IsVisible="_builderOpen"
+                         Automation="_editing"
+                         Options="_options"
+                         OnSave="SaveAutomationAsync"
+                         OnCancel="CloseBuilderAsync" />
+
+@code {
+    private List<AutomationDto> _automations = new();
+    private AutomationStatsDto? _stats;
+    private AutomationDeveloperDto? _developer;
+    private AutomationOptionsDto? _options;
+    private AutomationDto? _editing;
+    private bool _builderOpen;
+    private bool _loading = true;
+    private string? _error;
+    private string? _status;
+
+    [SupplyParameterFromQuery(Name = "create")]
+    public string? CreateQuery { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        if (string.Equals(CreateQuery, "1", StringComparison.Ordinal))
+        {
+            ShowCreateDialog();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _automations = (await Api.GetAutomationsAsync()).ToList();
+            _stats = await Api.GetAutomationStatsAsync();
+            _developer = await Api.GetAutomationDeveloperAsync();
+            _options = await Api.GetAutomationOptionsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ShowCreateDialog()
+    {
+        _editing = null;
+        _builderOpen = true;
+    }
+
+    private void EditAutomation(AutomationDto automation)
+    {
+        _editing = automation;
+        _builderOpen = true;
+    }
+
+    private Task CloseBuilderAsync()
+    {
+        _builderOpen = false;
+        _editing = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveAutomationAsync(AutomationBuilderModel model)
+    {
+        try
+        {
+            if (_editing is null)
+            {
+                await Api.CreateAutomationAsync(new CreateAutomationRequest(
+                    model.Name,
+                    model.Description,
+                    model.TriggerType,
+                    model.ActionType,
+                    model.ConfigJson,
+                    model.Enabled));
+                _status = "Automation created.";
+            }
+            else
+            {
+                await Api.UpdateAutomationAsync(_editing.Id, new UpdateAutomationRequest(
+                    model.Name,
+                    model.Description,
+                    model.TriggerType,
+                    model.ActionType,
+                    model.ConfigJson,
+                    model.Enabled));
+                _status = "Automation updated.";
+            }
+
+            _builderOpen = false;
+            _editing = null;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task EnableAsync(Guid id)
+    {
+        try
+        {
+            await Api.EnableAutomationAsync(id);
+            _status = "Automation enabled.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DisableAsync(Guid id)
+    {
+        try
+        {
+            await Api.DisableAutomationAsync(id);
+            _status = "Automation disabled.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task RunNowAsync(Guid id)
+    {
+        try
+        {
+            var result = await Api.RunAutomationAsync(id);
+            _status = $"{result.Status}: {result.Message}";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        try
+        {
+            await Api.DeleteAutomationAsync(id);
+            _status = "Automation deleted.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private static string FormatTrigger(string trigger) => trigger switch
+    {
+        "KnowledgeBaseUpdated" => "Knowledge Base Updated",
+        "ConversationEnded" => "Conversation Ended",
+        "TaskCompleted" => "Task Completed",
+        "FileAdded" => "File Added",
+        _ => trigger
+    };
+
+    private static string FormatAction(string action) => action switch
+    {
+        "AskAi" => "Ask AI",
+        "SummarizeDocument" => "Summarize Document",
+        "CreateTask" => "Create Task",
+        "MoveFile" => "Move File",
+        "ImportDocument" => "Import Document",
+        "GenerateNotes" => "Generate Notes",
+        "RunPrompt" => "Run Prompt",
+        "ExportConversation" => "Export Conversation",
+        _ => action
+    };
+
+    private static string FormatWhen(DateTimeOffset when) =>
+        when.ToLocalTime().ToString("MMM d, h:mm tt");
+
+    private static string? GetLogClass(string status) => status switch
+    {
+        "Failed" => "failed",
+        "Success" => "success",
+        _ => null
+    };
+
+    public sealed class AutomationBuilderModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string TriggerType { get; set; } = "Manual";
+        public string ActionType { get; set; } = "RunPrompt";
+        public string ConfigJson { get; set; } = "{}";
+        public bool Enabled { get; set; } = true;
+    }
+}

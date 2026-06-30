@@ -1,0 +1,258 @@
+.tasks-page {
+    flex: 1;
+    min-width: 0;
+    min-height: 100%;
+    overflow-y: auto;
+    padding: 28px 32px 36px;
+    background: #0f1117;
+}
+
+.tasks-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.tasks-header h1 {
+    margin: 0 0 6px;
+    color: #f8fafc;
+}
+
+.tasks-header p {
+    margin: 0;
+    color: #9aa3b5;
+}
+
+.tasks-quick-add-card,
+.tasks-toolbar-card,
+.tasks-empty-card,
+.tasks-developer-card {
+    margin-bottom: 18px;
+}
+
+.tasks-quick-add-label {
+    display: block;
+    margin-bottom: 8px;
+    color: #9aa3b5;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.tasks-quick-add-row,
+.tasks-toolbar-row {
+    display: flex;
+    gap: 12px;
+}
+
+.tasks-quick-add-input,
+.tasks-search-input,
+.tasks-select {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #0f1117;
+    color: #f8fafc;
+    font: inherit;
+}
+
+.tasks-select {
+    flex: 0 0 180px;
+}
+
+.tasks-view-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.tasks-view-tab {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    color: #cbd5e1;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.tasks-view-tab.is-active {
+    background: rgba(124, 92, 255, 0.18);
+    border-color: rgba(124, 92, 255, 0.45);
+    color: #e9ddff;
+}
+
+.tasks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.task-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.task-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(124, 92, 255, 0.35);
+}
+
+.task-card.is-completed-card {
+    opacity: 0.72;
+}
+
+.task-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.task-card-title {
+    margin: 0;
+    font-size: 1rem;
+    color: #f8fafc;
+}
+
+.task-pin-badge {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    color: #d4c2ff;
+}
+
+.task-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.task-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+}
+
+.task-priority.is-critical {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fecaca;
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.task-priority.is-high {
+    background: rgba(249, 115, 22, 0.15);
+    color: #fdba74;
+    border-color: rgba(249, 115, 22, 0.35);
+}
+
+.task-priority.is-medium {
+    background: rgba(124, 92, 255, 0.15);
+    color: #d4c2ff;
+    border-color: rgba(124, 92, 255, 0.35);
+}
+
+.task-priority.is-low {
+    background: rgba(148, 163, 184, 0.12);
+    color: #cbd5e1;
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+.task-status.is-pending {
+    background: rgba(148, 163, 184, 0.12);
+    color: #cbd5e1;
+}
+
+.task-status.is-progress {
+    background: rgba(59, 130, 246, 0.15);
+    color: #bfdbfe;
+}
+
+.task-status.is-completed {
+    background: rgba(34, 197, 94, 0.15);
+    color: #bbf7d0;
+}
+
+.task-status.is-cancelled {
+    background: rgba(100, 116, 139, 0.15);
+    color: #94a3b8;
+}
+
+.task-due {
+    margin: 0;
+    color: #cbd5e1;
+    font-size: 0.82rem;
+}
+
+.task-preview {
+    margin: 0;
+    color: #9aa3b5;
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.task-card-footer {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.tasks-developer {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0;
+}
+
+.tasks-developer dt {
+    color: #9aa3b5;
+    font-size: 0.78rem;
+}
+
+.tasks-developer dd {
+    margin: 0;
+    color: #f8fafc;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.tasks-error,
+.tasks-status,
+.tasks-loading,
+.tasks-empty {
+    color: #9aa3b5;
+}
+
+.tasks-error {
+    color: #fecaca;
+    margin-bottom: 12px;
+}
+
+.tasks-status {
+    color: #bbf7d0;
+    margin-bottom: 12px;
+}
+
+@media (max-width: 720px) {
+    .tasks-toolbar-row {
+        flex-direction: column;
+    }
+
+    .tasks-select {
+        flex: 1;
+    }
+
+    .tasks-developer {
+        grid-template-columns: 1fr;
+    }
+}

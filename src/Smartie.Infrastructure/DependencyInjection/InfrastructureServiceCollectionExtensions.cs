@@ -5,8 +5,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Smartie.Application.Abstractions;
 using Smartie.Application.Configuration;
 using Smartie.Infrastructure.Ai;
+using Smartie.Infrastructure.Chunking;
 using Smartie.Infrastructure.Documents;
 using Smartie.Infrastructure.Persistence;
+using Smartie.Infrastructure.Automation;
+using Smartie.Infrastructure.Plugins;
+using Smartie.Infrastructure.Startup;
 using Smartie.Infrastructure.Security;
 using Smartie.Infrastructure.Storage;
 
@@ -24,6 +28,10 @@ public static class InfrastructureServiceCollectionExtensions
     {
         services.Configure<AiOptions>(configuration.GetSection(AiOptions.SectionName));
         services.Configure<KnowledgeBaseOptions>(configuration.GetSection(KnowledgeBaseOptions.SectionName));
+        services.Configure<ChunkingOptions>(configuration.GetSection(ChunkingOptions.SectionName));
+        services.Configure<SemanticSearchOptions>(configuration.GetSection(SemanticSearchOptions.SectionName));
+        services.Configure<MemoryOptions>(configuration.GetSection(MemoryOptions.SectionName));
+        services.Configure<FileIntegrationOptions>(configuration.GetSection(FileIntegrationOptions.SectionName));
         services.Configure<AttachedDocumentContextOptions>(configuration.GetSection(AttachedDocumentContextOptions.SectionName));
 
         var configured = configuration.GetConnectionString("Smartie");
@@ -36,6 +44,21 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAiSettingsRepository, AiSettingsRepository>();
         services.AddScoped<IMessageAttachmentRepository, MessageAttachmentRepository>();
         services.AddScoped<IDocumentRepository, DocumentRepository>();
+        services.AddScoped<IDocumentChunkRepository, DocumentChunkRepository>();
+        services.AddScoped<IMemoryRepository, MemoryRepository>();
+        services.AddScoped<IRecentCommandRepository, RecentCommandRepository>();
+        services.AddScoped<ITaskRepository, TaskRepository>();
+        services.AddScoped<IFileIntegrationRepository, FileIntegrationRepository>();
+        services.AddScoped<IAppearanceRepository, AppearanceRepository>();
+        services.AddScoped<IPluginRepository, PluginRepository>();
+        services.AddScoped<IAutomationRepository, AutomationRepository>();
+        services.AddScoped<IOnboardingRepository, OnboardingRepository>();
+        services.AddSingleton<PluginRegistry>();
+        services.AddSingleton<IPluginRegistry>(sp => sp.GetRequiredService<PluginRegistry>());
+        services.AddSingleton<IPluginLoader, PluginLoader>();
+        services.AddHostedService<PluginBootstrapHostedService>();
+        services.AddHostedService<AutomationSchedulerHostedService>();
+        services.AddHostedService<AppStartupMetricsHostedService>();
         services.AddScoped<IDocumentStorage, LocalDocumentStorage>();
         services.AddScoped<IChatAttachmentStorage, LocalChatAttachmentStorage>();
 
@@ -45,6 +68,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<DocxDocumentTextExtractor>();
         services.AddScoped<IAttachmentTextExtractor, ChatFileTextExtractor>();
         services.AddScoped<IDocumentTextExtractionRouter, DocumentTextExtractionRouter>();
+        services.AddScoped<IDocumentChunker, BasicDocumentChunker>();
         services.AddScoped<IDocumentTextExtractor>(sp => new CompositeDocumentTextExtractor(
         [
             sp.GetRequiredService<TxtDocumentTextExtractor>(),
@@ -56,6 +80,7 @@ public static class InfrastructureServiceCollectionExtensions
         RegisterSecretProtector(services);
 
         services.AddSingleton<IChatCompletionProvider, ChatCompletionProviderFactory>();
+        services.AddSingleton<IEmbeddingProviderFactory, EmbeddingProviderFactory>();
         services.AddScoped<IChatAiService, SemanticKernelChatService>();
 
         return services;

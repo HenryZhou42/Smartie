@@ -1,0 +1,414 @@
+@page "/files"
+@inject SmartieApiClient Api
+@inject ILocalFileSystemService LocalFiles
+@inject NavigationManager Navigation
+
+<PageTitle>Smartie · Files</PageTitle>
+
+<div class="files-page">
+    <header class="files-header">
+        <div>
+            <h1>Files</h1>
+            <p>Recent files, favorite folders, and quick desktop actions — all local on this device.</p>
+        </div>
+        <div class="files-header-actions">
+            <SmartieButton Variant="SmartieButtonVariant.Secondary" Disabled="@(!LocalFiles.IsDesktopIntegrationAvailable)" @onclick="PickFileAsync">Open File</SmartieButton>
+            <SmartieButton Variant="SmartieButtonVariant.Primary" Disabled="@(!LocalFiles.IsDesktopIntegrationAvailable)" @onclick="PickFolderAsync">Add Favorite Folder</SmartieButton>
+        </div>
+    </header>
+
+    @if (!LocalFiles.IsDesktopIntegrationAvailable)
+    {
+        <div class="files-note">Desktop integrations work best in the Smartie desktop app. Recent files and favorites still sync through the local API.</div>
+    }
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="files-error">@_error</div>
+    }
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="files-status">@_status</div>
+    }
+
+    <section class="dashboard-card files-search-card">
+        <h2 class="card-title">Search Files</h2>
+        <div class="files-search-row">
+            <input type="search"
+                   class="files-search-input"
+                   placeholder="Search by filename…"
+                   @bind="_searchQuery"
+                   @onkeydown="HandleSearchKeyDown" />
+            <button type="button" class="btn-knowledge btn-knowledge-primary" disabled="@_searching" @onclick="SearchAsync">
+                @(_searching ? "Searching…" : "Search")
+            </button>
+        </div>
+        @if (_searchResponse is not null)
+        {
+            <p class="files-search-meta">@_searchResponse.Results.Count result(s) · @_searchResponse.Developer.SearchTimeMs ms</p>
+        }
+    </section>
+
+    @if (_searchResponse?.Results.Count > 0)
+    {
+        <section class="dashboard-card files-list-card">
+            <h2 class="card-title">Search Results</h2>
+            <ul class="files-list">
+                @foreach (var result in _searchResponse.Results)
+                {
+                    <li class="files-row">
+                        <div class="files-row-main">
+                            <span class="files-name">@result.FileName</span>
+                            <span class="files-meta">@result.Extension · @FormatBytes(result.SizeBytes) · @FormatModified(result.ModifiedAt)</span>
+                            <span class="files-location">@result.Location</span>
+                        </div>
+                        <div class="files-row-actions">
+                            @RenderFileActions(result.FilePath, result.FileName)
+                        </div>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+
+    <div class="files-columns">
+        <section class="dashboard-card files-list-card">
+            <h2 class="card-title">Recent Files</h2>
+            @if (_loading)
+            {
+                <p class="files-empty">Loading…</p>
+            }
+            else if (_recentFiles.Count == 0)
+            {
+                <SmartieEmptyState Icon="📄"
+                                   Title="No recent files"
+                                   Subtitle="Open a file to build your recent list.">
+                    <Action>
+                        <SmartieButton Variant="SmartieButtonVariant.Primary" Disabled="@(!LocalFiles.IsDesktopIntegrationAvailable)" @onclick="PickFileAsync">Open File</SmartieButton>
+                    </Action>
+                </SmartieEmptyState>
+            }
+            else
+            {
+                <ul class="files-list">
+                    @foreach (var file in _recentFiles)
+                    {
+                        <li class="files-row">
+                            <div class="files-row-main">
+                                <span class="files-name">
+                                    @if (file.Pinned)
+                                    {
+                                        <span class="files-pin" title="Pinned"><NavIcon Name="pin" /></span>
+                                    }
+                                    @file.FileName
+                                </span>
+                                <span class="files-meta">@file.Extension · @FormatBytes(file.SizeBytes) · @FormatModified(file.LastOpenedAt)</span>
+                                <span class="files-location">@file.Location</span>
+                            </div>
+                            <div class="files-row-actions">
+                                @RenderFileActions(file.FilePath, file.FileName)
+                                <button type="button" class="btn-table" @onclick="() => TogglePinAsync(file)">@(file.Pinned ? "Unpin" : "Pin")</button>
+                                <button type="button" class="btn-table" @onclick="() => ToggleFavoriteAsync(file)">@(file.IsFavorite ? "Unfavorite" : "Favorite")</button>
+                                <button type="button" class="btn-table btn-table-danger" @onclick="() => RemoveRecentAsync(file.Id)">Remove</button>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        <section class="dashboard-card files-list-card">
+            <h2 class="card-title">Favorite Folders</h2>
+            @if (_favoriteFolders.Count == 0)
+            {
+                <SmartieEmptyState Icon="📁"
+                                   Title="No favorite folders"
+                                   Subtitle="Add folders you browse often for quick access.">
+                    <Action>
+                        <SmartieButton Variant="SmartieButtonVariant.Primary" Disabled="@(!LocalFiles.IsDesktopIntegrationAvailable)" @onclick="PickFolderAsync">Add Favorite Folder</SmartieButton>
+                    </Action>
+                </SmartieEmptyState>
+            }
+            else
+            {
+                <div class="files-folder-grid">
+                    @foreach (var folder in _favoriteFolders)
+                    {
+                        <article class="files-folder-card dashboard-card">
+                            <div class="files-folder-main">
+                                <div class="files-folder-icon" aria-hidden="true">📁</div>
+                                <div class="files-folder-text">
+                                    <span class="files-folder-name">@folder.Label</span>
+                                    <span class="files-folder-path">@folder.FolderPath</span>
+                                </div>
+                            </div>
+                            <div class="files-folder-actions">
+                                <SmartieButton Variant="SmartieButtonVariant.Ghost" Disabled="@(!LocalFiles.IsDesktopIntegrationAvailable)" @onclick="() => OpenFolderAsync(folder.FolderPath)">Open</SmartieButton>
+                                <SmartieButton Variant="SmartieButtonVariant.Danger" @onclick="() => RemoveFavoriteAsync(folder.Id)">Remove</SmartieButton>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+
+    @if (_developer is not null)
+    {
+        <SmartieDevPanel>
+            <dl class="smartie-stat-grid">
+                <SmartieStatCard Label="File count" Value="@_developer.FileCount.ToString()" />
+                <SmartieStatCard Label="Search time" Value="@($"{_developer.SearchTimeMs} ms")" />
+                <SmartieStatCard Label="Indexed files" Value="@_developer.IndexedFiles.ToString()" />
+                <SmartieStatCard Label="Favorite folders" Value="@_developer.FavoriteFolderCount.ToString()" />
+            </dl>
+        </SmartieDevPanel>
+    }
+</div>
+
+@code {
+    private List<RecentFileDto> _recentFiles = new();
+    private List<FavoriteFolderDto> _favoriteFolders = new();
+    private FileSearchResponseDto? _searchResponse;
+    private FileIntegrationDeveloperDto? _developer;
+    private string _searchQuery = string.Empty;
+    private bool _loading = true;
+    private bool _searching;
+    private string? _error;
+    private string? _status;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _recentFiles = (await Api.GetRecentFilesAsync()).ToList();
+            _favoriteFolders = (await Api.GetFavoriteFoldersAsync()).ToList();
+            _developer = await Api.GetFileIntegrationDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private RenderFragment RenderFileActions(string filePath, string fileName) => __builder =>
+    {
+        <button type="button" class="btn-table" disabled="@(!LocalFiles.IsDesktopIntegrationAvailable)" @onclick="() => OpenFileAsync(filePath)">Open</button>
+        <button type="button" class="btn-table" disabled="@(!LocalFiles.IsDesktopIntegrationAvailable)" @onclick="() => RevealAsync(filePath)">Reveal in Explorer</button>
+        <button type="button" class="btn-table" @onclick="() => ImportToKnowledgeAsync(filePath, fileName)">Add to Knowledge Base</button>
+        <button type="button" class="btn-table" @onclick="() => AttachToChatAsync(filePath)">Attach to Chat</button>
+    };
+
+    private async Task PickFileAsync()
+    {
+        try
+        {
+            var path = await LocalFiles.PickFileAsync(DesktopFileTypes.SupportedExtensions);
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                await OpenFileAsync(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task PickFolderAsync()
+    {
+        try
+        {
+            var path = await LocalFiles.PickFolderAsync();
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            await Api.AddFavoriteFolderAsync(path);
+            _status = "Favorite folder added.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task OpenFileAsync(string filePath)
+    {
+        try
+        {
+            await LocalFiles.OpenFileAsync(filePath);
+            await Api.RecordRecentFileAsync(filePath);
+            _status = "File opened.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task RevealAsync(string filePath)
+    {
+        try
+        {
+            await LocalFiles.RevealInExplorerAsync(filePath);
+            await Api.RecordRecentFileAsync(filePath);
+            _status = "Revealed in Explorer.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task OpenFolderAsync(string folderPath)
+    {
+        try
+        {
+            await LocalFiles.OpenFolderAsync(folderPath);
+            _status = "Folder opened.";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task ImportToKnowledgeAsync(string filePath, string fileName)
+    {
+        try
+        {
+            await using var stream = await LocalFiles.OpenReadAsync(filePath);
+            await Api.UploadDocumentAsync(stream, fileName);
+            await Api.RecordRecentFileAsync(filePath);
+            _status = "Imported to Knowledge Base.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private Task AttachToChatAsync(string filePath)
+    {
+        Navigation.NavigateTo($"/chat?attachPath={Uri.EscapeDataString(filePath)}");
+        return Task.CompletedTask;
+    }
+
+    private async Task TogglePinAsync(RecentFileDto file)
+    {
+        try
+        {
+            await Api.SetRecentFilePinnedAsync(file.Id, !file.Pinned);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task ToggleFavoriteAsync(RecentFileDto file)
+    {
+        try
+        {
+            await Api.SetRecentFileFavoriteAsync(file.Id, !file.IsFavorite);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task RemoveRecentAsync(Guid id)
+    {
+        try
+        {
+            await Api.DeleteRecentFileAsync(id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task RemoveFavoriteAsync(Guid id)
+    {
+        try
+        {
+            await Api.DeleteFavoriteFolderAsync(id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchAsync();
+        }
+    }
+
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            _searchResponse = null;
+            return;
+        }
+
+        _searching = true;
+        _error = null;
+        try
+        {
+            _searchResponse = await Api.SearchFilesAsync(_searchQuery.Trim());
+            _developer = await Api.GetFileIntegrationDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+
+    private static string FormatModified(DateTimeOffset value) =>
+        value.ToLocalTime().ToString("g");
+}

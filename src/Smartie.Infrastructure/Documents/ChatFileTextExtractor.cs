@@ -6,14 +6,14 @@ namespace Smartie.Infrastructure.Documents;
 public sealed class ChatFileTextExtractor : IAttachmentTextExtractor
 {
     public bool CanExtract(string extension) =>
-        DocumentExtensionMatcher.IsAny(extension, ".txt", "txt", ".md", "md", ".markdown", "markdown", ".pdf", "pdf", ".docx", "docx");
+        DocumentExtensionMatcher.IsAny(extension, ".txt", "txt", ".md", "md", ".markdown", "markdown", ".pdf", "pdf", ".docx", "docx", ".csv", "csv");
 
     public async Task<string> ExtractFromFileAsync(
         string absolutePath,
         string extension,
         CancellationToken cancellationToken = default)
     {
-        if (DocumentExtensionMatcher.IsAny(extension, ".txt", "txt", ".md", "md", ".markdown", "markdown"))
+        if (DocumentExtensionMatcher.IsAny(extension, ".txt", "txt", ".md", "md", ".markdown", "markdown", ".csv", "csv"))
         {
             return await FilePathTextExtractor.ReadTextFileAsync(absolutePath, cancellationToken).ConfigureAwait(false);
         }

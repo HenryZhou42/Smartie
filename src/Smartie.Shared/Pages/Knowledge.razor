@@ -61,14 +61,13 @@
             <span class="knowledge-stat-value">@(_stats?.DocumentCount ?? 0)</span>
             <span class="knowledge-stat-label">Documents</span>
         </article>
-        <article class="dashboard-card knowledge-stat-card is-muted">
-            <span class="knowledge-stat-value">0</span>
-            <span class="knowledge-stat-label">Collections</span>
-            <span class="badge-soon">Coming Soon</span>
+        <article class="dashboard-card knowledge-stat-card">
+            <span class="knowledge-stat-value">@(_stats?.EmbeddedDocumentCount ?? 0)</span>
+            <span class="knowledge-stat-label">Embedded</span>
         </article>
         <article class="dashboard-card knowledge-stat-card">
-            <span class="knowledge-stat-value">@(_stats?.IndexedCount ?? 0)</span>
-            <span class="knowledge-stat-label">Indexed</span>
+            <span class="knowledge-stat-value">@(_stats?.ChunkedCount ?? 0)</span>
+            <span class="knowledge-stat-label">Chunked</span>
         </article>
         <article class="dashboard-card knowledge-stat-card">
             <span class="knowledge-stat-value">@FormatBytes(_stats?.TotalSizeBytes ?? 0)</span>
@@ -80,10 +79,108 @@
         </article>
     </section>
 
+    <section class="dashboard-card knowledge-semantic-search-card">
+        <div class="knowledge-semantic-search-header">
+            <h2 class="card-title">Search Knowledge Base</h2>
+            <div class="knowledge-topk-select">
+                <label for="semantic-topk">Top K</label>
+                <select id="semantic-topk" class="knowledge-topk-dropdown" @bind="_semanticTopK" disabled="@_semanticSearching">
+                    @foreach (var value in _allowedTopK)
+                    {
+                        <option value="@value">@value</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="knowledge-semantic-search-row">
+            <input type="search"
+                   class="knowledge-semantic-search-input"
+                   placeholder="Ask your Knowledge Base…"
+                   @bind="_semanticQuery"
+                   @bind:event="oninput"
+                   @onkeyup="HandleSemanticSearchKeyUp"
+                   disabled="@_semanticSearching" />
+            <button type="button"
+                    class="btn-knowledge btn-knowledge-primary"
+                    disabled="@(_semanticSearching || string.IsNullOrWhiteSpace(_semanticQuery))"
+                    @onclick="RunSemanticSearchAsync">
+                @(_semanticSearching ? "Searching…" : "Search")
+            </button>
+        </div>
+        <div class="knowledge-semantic-examples">
+            <span class="knowledge-semantic-examples-label">Try:</span>
+            @foreach (var example in _semanticExamples)
+            {
+                <button type="button"
+                        class="knowledge-example-chip"
+                        disabled="@_semanticSearching"
+                        @onclick="() => RunSemanticExampleAsync(example)">
+                    @example
+                </button>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(_semanticError))
+        {
+            <div class="knowledge-semantic-error">@_semanticError</div>
+        }
+
+        @if (_semanticSearching)
+        {
+            <p class="knowledge-semantic-status">Searching embedded chunks…</p>
+        }
+        else if (_semanticResponse is not null)
+        {
+            @if (_semanticResponse.Results.Count == 0)
+            {
+                <p class="knowledge-semantic-empty">No relevant chunks found.</p>
+            }
+            else
+            {
+                <ul class="knowledge-semantic-results">
+                    @foreach (var result in _semanticResponse.Results)
+                    {
+                        <li class="knowledge-semantic-result">
+                            <div class="knowledge-semantic-result-header">
+                                <button type="button"
+                                        class="knowledge-semantic-doc-link"
+                                        @onclick="() => ViewDocument(result.DocumentId)">
+                                    @result.FileName
+                                </button>
+                                <span class="knowledge-semantic-score">@result.Score.ToString("0.00")</span>
+                            </div>
+                            <p class="knowledge-semantic-preview">@result.Preview</p>
+                            @if (result.PageNumber is int pageNumber)
+                            {
+                                <span class="knowledge-semantic-meta">Page @pageNumber · Chunk @(result.ChunkIndex + 1)</span>
+                            }
+                            else
+                            {
+                                <span class="knowledge-semantic-meta">Chunk @(result.ChunkIndex + 1)</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+
+            @if (_semanticResponse.Developer is not null)
+            {
+                <dl class="knowledge-semantic-developer">
+                    <div><dt>Embedding dimensions</dt><dd>@FormatDimension(_semanticResponse.Developer.EmbeddingDimensions)</dd></div>
+                    <div><dt>Top K</dt><dd>@_semanticResponse.Developer.TopK</dd></div>
+                    <div><dt>Top score</dt><dd>@FormatScore(_semanticResponse.Developer.TopScore)</dd></div>
+                    <div><dt>Search time</dt><dd>@_semanticResponse.Developer.SearchDurationMs ms</dd></div>
+                    <div><dt>Query embedding provider</dt><dd>@(_semanticResponse.Developer.QueryEmbeddingProvider)</dd></div>
+                </dl>
+            }
+        }
+    </section>
+
     <section class="dashboard-card knowledge-search-card">
+        <h2 class="card-title">Filter Documents</h2>
         <input type="search" class="knowledge-search" placeholder="Search documents…"
                @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKeyUp" />
-        <p class="knowledge-search-hint">Search by name, filename, or type. Tags and collections coming soon.</p>
+        <p class="knowledge-search-hint">Filter by name, filename, or type.</p>
     </section>
 
     @if (_documents.Count == 0 && !_loading)
@@ -111,6 +208,7 @@
                             <th scope="col">Name</th>
                             <th scope="col">Type</th>
                             <th scope="col">Extraction</th>
+                            <th scope="col">Chunks</th>
                             <th scope="col">Size</th>
                             <th scope="col">Created</th>
                             <th scope="col">Updated</th>
@@ -130,7 +228,13 @@
                                     }
                                     else
                                     {
-                                        <span class="doc-name">@doc.Name</span>
+                                        <span class="doc-name">
+                                            @doc.Name
+                                            @if (doc.IsSample)
+                                            {
+                                                <span class="badge-sample">Sample</span>
+                                            }
+                                        </span>
                                         <span class="doc-filename">@doc.FileName</span>
                                     }
                                 </td>
@@ -139,6 +243,16 @@
                                     <span class="extraction-badge @GetExtractionBadgeClass(doc.ExtractionStatus)">
                                         @GetExtractionCardLabel(doc)
                                     </span>
+                                </td>
+                                <td>
+                                    @if (doc.IsChunked)
+                                    {
+                                        <span class="chunk-count-badge">@doc.ChunkCount</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="chunk-count-muted">—</span>
+                                    }
                                 </td>
                                 <td>@FormatBytes(doc.SizeBytes)</td>
                                 <td>@FormatRelativeTime(doc.UploadedAt)</td>
@@ -199,8 +313,13 @@
                 <div><dt>Size</dt><dd>@FormatBytes(_metadataDocument.SizeBytes)</dd></div>
                 <div><dt>Uploaded</dt><dd>@_metadataDocument.UploadedAt.ToLocalTime().ToString("f")</dd></div>
                 <div><dt>Updated</dt><dd>@_metadataDocument.UpdatedAt.ToLocalTime().ToString("f")</dd></div>
-                <div><dt>Indexed</dt><dd>@(_metadataDocument.IsIndexed ? "Yes" : "No")</dd></div>
                 <div><dt>Extraction</dt><dd>@_metadataDocument.ExtractionStatusLabel</dd></div>
+                <div><dt>Chunks</dt><dd>@(_metadataDocument.IsChunked ? _metadataDocument.ChunkCount.ToString() : "Not chunked")</dd></div>
+                <div><dt>Embeddings</dt><dd>@_metadataDocument.EmbeddingStatusLabel — @_metadataDocument.EmbeddedChunkCount/@_metadataDocument.ChunkCount chunks</dd></div>
+                @if (!string.IsNullOrEmpty(_metadataDocument.EmbeddingModel))
+                {
+                    <div><dt>Embedding model</dt><dd>@_metadataDocument.EmbeddingModel</dd></div>
+                }
                 <div><dt>Tags</dt><dd>@_metadataDocument.TagCount</dd></div>
             </dl>
             <button type="button" class="btn-knowledge btn-knowledge-primary" @onclick="CloseMetadata">Close</button>
@@ -225,10 +344,33 @@
     private string _renameText = string.Empty;
     private DocumentDto? _metadataDocument;
     private string _storageFolder = string.Empty;
-    private IReadOnlyList<string> _supportedTypes = [".pdf", ".docx", ".txt", ".md", ".markdown"];
+    private IReadOnlyList<string> _supportedTypes = DesktopFileTypes.SupportedExtensions;
     private DotNetObjectReference<Knowledge>? _dotNetRef;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private string _semanticQuery = string.Empty;
+    private int _semanticTopK = 5;
+    private readonly int[] _allowedTopK = [3, 5, 8, 10];
+    private readonly string[] _semanticExamples =
+        ["vacation policy", "engineering manager", "training budget", "remote work"];
+    private SemanticSearchResponseDto? _semanticResponse;
+    private bool _semanticSearching;
+    private string? _semanticError;
+    private bool _pendingUpload;
+    private bool _pendingSearchFocus;
+
+    [SupplyParameterFromQuery(Name = "upload")]
+    public bool UploadOnLoad { get; set; }
+
+    [SupplyParameterFromQuery(Name = "search")]
+    public bool SearchOnLoad { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _pendingUpload = UploadOnLoad;
+        _pendingSearchFocus = SearchOnLoad;
+        await LoadSemanticSearchSettingsAsync();
+        await LoadAsync();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -254,6 +396,12 @@
             _dotNetRef,
             BuildDropOptions(baseAddress));
         _dropZoneInitialized = true;
+
+        if (_pendingUpload)
+        {
+            _pendingUpload = false;
+            await TriggerUploadAsync();
+        }
     }
 
     private Task HandleNativePathsAsync(IReadOnlyList<string> paths) =>
@@ -556,6 +704,66 @@
             await LoadAsync();
         }
     }
+
+    private async Task LoadSemanticSearchSettingsAsync()
+    {
+        try
+        {
+            var settings = await Api.GetSemanticSearchDeveloperAsync();
+            if (settings is not null)
+            {
+                _semanticTopK = settings.DefaultTopK;
+            }
+        }
+        catch
+        {
+            // Keep default Top K when settings are unavailable.
+        }
+    }
+
+    private async Task HandleSemanticSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await RunSemanticSearchAsync();
+        }
+    }
+
+    private Task RunSemanticExampleAsync(string example)
+    {
+        _semanticQuery = example;
+        return RunSemanticSearchAsync();
+    }
+
+    private async Task RunSemanticSearchAsync()
+    {
+        if (_semanticSearching || string.IsNullOrWhiteSpace(_semanticQuery))
+        {
+            return;
+        }
+
+        _semanticSearching = true;
+        _semanticError = null;
+        try
+        {
+            _semanticResponse = await Api.SearchKnowledgeBaseAsync(_semanticQuery.Trim(), _semanticTopK);
+        }
+        catch (Exception ex)
+        {
+            _semanticError = ex.Message;
+            _semanticResponse = null;
+        }
+        finally
+        {
+            _semanticSearching = false;
+        }
+    }
+
+    private static string FormatDimension(int? dimension) =>
+        dimension is int value ? value.ToString("N0") : "—";
+
+    private static string FormatScore(float? score) =>
+        score is float value ? value.ToString("0.00") : "—";
 
     private async Task OpenDocumentAsync(Guid id)
     {

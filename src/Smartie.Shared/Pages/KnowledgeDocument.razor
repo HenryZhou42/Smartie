@@ -16,6 +16,12 @@
                 <span class="extraction-badge @GetExtractionBadgeClass(_detail.ExtractionStatus)">
                     @GetExtractionCardLabel(_detail.ExtractionStatus)
                 </span>
+                <span class="extraction-badge @GetChunkingBadgeClass(_detail.IsChunked)">
+                    @_detail.ChunkingStatusLabel
+                </span>
+                <span class="extraction-badge @GetEmbeddingBadgeClass(_detail.IsEmbedded, _detail.EmbeddedChunkCount)">
+                    @_detail.EmbeddingStatusLabel
+                </span>
             </div>
             <p class="document-detail-subtitle">@_detail.TypeLabel · @FormatBytes(_detail.SizeBytes)</p>
         }
@@ -38,16 +44,25 @@
                 <div><dt>File</dt><dd>@_detail.FileName</dd></div>
                 <div><dt>Type</dt><dd>@_detail.TypeLabel</dd></div>
                 <div><dt>Size</dt><dd>@FormatBytes(_detail.SizeBytes)</dd></div>
-                <div><dt>Status</dt><dd>@_detail.ExtractionStatusLabel</dd></div>
+                <div><dt>Extraction Status</dt><dd>@_detail.ExtractionStatusLabel</dd></div>
+                <div><dt>Characters Extracted</dt><dd>@_detail.ExtractedLength.ToString("N0")</dd></div>
+                <div><dt>Chunking Status</dt><dd>@_detail.ChunkingStatusLabel</dd></div>
+                <div><dt>Chunk Count</dt><dd>@_detail.ChunkCount.ToString("N0")</dd></div>
+                <div><dt>Embedded Chunks</dt><dd>@_detail.EmbeddedChunkCount.ToString("N0")</dd></div>
+                <div><dt>Embedding Status</dt><dd>@_detail.EmbeddingStatusLabel</dd></div>
+                <div><dt>Embedding Model</dt><dd>@(_detail.EmbeddingModel ?? "—")</dd></div>
                 <div><dt>Uploaded</dt><dd>@_detail.UploadedAt.ToLocalTime().ToString("f")</dd></div>
-                <div><dt>Updated</dt><dd>@_detail.UpdatedAt.ToLocalTime().ToString("f")</dd></div>
                 @if (_detail.ExtractedAt is not null)
                 {
                     <div><dt>Extracted</dt><dd>@_detail.ExtractedAt.Value.ToLocalTime().ToString("f")</dd></div>
                 }
-                @if (_detail.ExtractedLength > 0)
+                @if (_detail.ChunkedAt is not null)
                 {
-                    <div><dt>Characters</dt><dd>@_detail.ExtractedLength.ToString("N0")</dd></div>
+                    <div><dt>Chunked</dt><dd>@_detail.ChunkedAt.Value.ToLocalTime().ToString("f")</dd></div>
+                }
+                @if (_detail.EmbeddedAt is not null)
+                {
+                    <div><dt>Embedded</dt><dd>@_detail.EmbeddedAt.Value.ToLocalTime().ToString("f")</dd></div>
                 }
                 @if (!string.IsNullOrEmpty(_detail.ExtractionError))
                 {
@@ -79,12 +94,99 @@
             }
         </section>
 
+        <section class="dashboard-card document-chunks-card">
+            <div class="document-preview-header">
+                <h2 class="card-title">Preview Chunks</h2>
+                @if (_detail.IsChunked)
+                {
+                    <span class="preview-note">@_detail.ChunkCount chunk(s)</span>
+                }
+            </div>
+
+            @if (_detail.IsChunked && _detail.ChunkPreviews.Count > 0)
+            {
+                <ol class="document-chunk-list">
+                    @foreach (var chunk in _detail.ChunkPreviews)
+                    {
+                        <li class="document-chunk-item">
+                            <span class="document-chunk-index">@chunk.ChunkIndex + 1.</span>
+                            <span class="document-chunk-preview">@chunk.Preview</span>
+                            @if (chunk.PageNumber is int pageNumber)
+                            {
+                                <span class="document-chunk-meta">Page @pageNumber</span>
+                            }
+                        </li>
+                    }
+                </ol>
+            }
+            else if (_detail.ExtractionStatus == "Completed")
+            {
+                <p class="document-preview-empty">No chunks have been created yet.</p>
+            }
+            else
+            {
+                <p class="document-preview-empty">Chunks will appear after extraction completes.</p>
+            }
+
+            @if (_detail.ExtractionStatus == "Completed")
+            {
+                <div class="document-chunk-actions">
+                    <button type="button"
+                            class="btn-knowledge btn-knowledge-primary"
+                            disabled="@_rebuilding"
+                            @onclick="RebuildChunksAsync">
+                        @(_rebuilding ? "Rebuilding…" : "Rebuild Chunks")
+                    </button>
+                </div>
+            }
+        </section>
+
+        @if (_detail.IsChunked)
+        {
+            <section class="dashboard-card document-embedding-card">
+                <div class="document-preview-header">
+                    <h2 class="card-title">Embeddings</h2>
+                    <span class="preview-note">@_detail.EmbeddedChunkCount / @_detail.ChunkCount embedded</span>
+                </div>
+
+                <div class="document-chunk-actions">
+                    <button type="button"
+                            class="btn-knowledge btn-knowledge-primary"
+                            disabled="@_embedding"
+                            @onclick="GenerateEmbeddingsAsync">
+                        @(_embedding ? "Generating…" : "Generate Embeddings")
+                    </button>
+                    <button type="button"
+                            class="btn-knowledge btn-knowledge-ghost"
+                            disabled="@_embedding"
+                            @onclick="RebuildEmbeddingsAsync">
+                        @(_embedding ? "Working…" : "Rebuild Embeddings")
+                    </button>
+                </div>
+            </section>
+        }
+
         <section class="dashboard-card document-developer-card">
             <h2 class="card-title">Developer</h2>
             <dl class="document-detail-list">
                 <div><dt>Characters extracted</dt><dd>@_detail.ExtractedLength.ToString("N0")</dd></div>
                 <div><dt>Extraction time</dt><dd>@FormatDuration(_detail.ExtractionDurationMs)</dd></div>
                 <div><dt>Extractor used</dt><dd>@(_detail.ExtractorUsed ?? "—")</dd></div>
+                @if (_detail.ChunkDeveloper is not null)
+                {
+                    <div><dt>Chunk size</dt><dd>@_detail.ChunkDeveloper.TargetChunkSize.ToString("N0") characters</dd></div>
+                    <div><dt>Overlap</dt><dd>@_detail.ChunkDeveloper.ChunkOverlap.ToString("N0") characters</dd></div>
+                    <div><dt>Chunk count</dt><dd>@_detail.ChunkDeveloper.ChunkCount.ToString("N0")</dd></div>
+                    <div><dt>Average chunk length</dt><dd>@_detail.ChunkDeveloper.AverageChunkLength.ToString("0") characters</dd></div>
+                }
+                @if (_detail.EmbeddingDeveloper is not null)
+                {
+                    <div><dt>Embedding provider</dt><dd>@_detail.EmbeddingDeveloper.EmbeddingProvider</dd></div>
+                    <div><dt>Embedding model</dt><dd>@_detail.EmbeddingDeveloper.EmbeddingModel</dd></div>
+                    <div><dt>Vector dimension</dt><dd>@FormatDimension(_detail.EmbeddingDeveloper.VectorDimension)</dd></div>
+                    <div><dt>Generated count</dt><dd>@_detail.EmbeddingDeveloper.GeneratedCount</dd></div>
+                    <div><dt>Failed count</dt><dd>@_detail.EmbeddingDeveloper.FailedCount</dd></div>
+                }
             </dl>
         </section>
 
@@ -101,6 +203,8 @@
 
     private DocumentDetailDto? _detail;
     private bool _loading = true;
+    private bool _rebuilding;
+    private bool _embedding;
     private string? _error;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
@@ -124,6 +228,78 @@
         finally
         {
             _loading = false;
+        }
+    }
+
+    private async Task RebuildChunksAsync()
+    {
+        if (_detail is null || _rebuilding)
+        {
+            return;
+        }
+
+        _rebuilding = true;
+        _error = null;
+        try
+        {
+            await Api.RebuildDocumentChunksAsync(_detail.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _rebuilding = false;
+        }
+    }
+
+    private async Task GenerateEmbeddingsAsync()
+    {
+        if (_detail is null || _embedding)
+        {
+            return;
+        }
+
+        _embedding = true;
+        _error = null;
+        try
+        {
+            await Api.GenerateDocumentEmbeddingsAsync(_detail.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _embedding = false;
+        }
+    }
+
+    private async Task RebuildEmbeddingsAsync()
+    {
+        if (_detail is null || _embedding)
+        {
+            return;
+        }
+
+        _embedding = true;
+        _error = null;
+        try
+        {
+            await Api.RebuildDocumentEmbeddingsAsync(_detail.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _embedding = false;
         }
     }
 
@@ -156,6 +332,15 @@
             "Extracting" => "is-extracting",
             _ => "is-pending"
         };
+
+    private static string GetChunkingBadgeClass(bool isChunked) =>
+        isChunked ? "is-extracted" : "is-pending";
+
+    private static string GetEmbeddingBadgeClass(bool isEmbedded, int embeddedCount) =>
+        isEmbedded ? "is-extracted" : embeddedCount > 0 ? "is-extracting" : "is-pending";
+
+    private static string FormatDimension(int? dimension) =>
+        dimension is int value ? value.ToString("N0") : "—";
 
     private static string GetExtractionCardLabel(string status) =>
         status switch

@@ -3,19 +3,33 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Smartie.Maui</title>
+    <title>Smartie</title>
     <base href="/" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="_content/Smartie.Shared/css/smartie.css" />
-    <link rel="stylesheet" href="Smartie.Maui.styles.css" />
+    <link rel="stylesheet" href="_content/Smartie.Shared/css/smartie-design-system.css" />
+    <link rel="stylesheet" href="Smartie.styles.css" />
     <link rel="icon" href="data:,">
+    <style>
+        #app-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #e6e8ee;
+            font-family: "Segoe UI", system-ui, sans-serif;
+            background: #12141b;
+        }
+    </style>
 </head>
 
 <body>
 
     <div class="status-bar-safe-area"></div>
 
-    <div id="app">Loading...</div>
+    <div id="app">
+        <div id="app-loading">Starting Smartie…</div>
+    </div>
 
     <div id="blazor-error-ui">
         An unhandled error has occurred.
@@ -23,11 +37,14 @@
         <a class="dismiss">🗙</a>
     </div>
 
+    <script src="_content/Smartie.Shared/js/theme.js"></script>
+    <script>window.smartieTheme?.applyCached?.();</script>
     <script src="_content/Smartie.Shared/js/chat-stream.js"></script>
     <script src="_content/Smartie.Shared/js/chatScroll.js"></script>
     <script src="_content/Smartie.Shared/js/knowledge-drop.js"></script>
     <script src="_content/Smartie.Shared/js/chat-drop.js"></script>
-    <script src="_framework/blazor.webview.js" autostart="false"></script>
+    <script src="_content/Smartie.Shared/js/command-palette.js"></script>
+    <script src="_framework/blazor.webview.js"></script>
 
 </body>
 

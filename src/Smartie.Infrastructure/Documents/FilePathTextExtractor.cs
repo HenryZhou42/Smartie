@@ -15,13 +15,24 @@ internal static class FilePathTextExtractor
     {
         var builder = new StringBuilder();
         using var document = PdfDocument.Open(absolutePath);
+        var pageNumber = 0;
         foreach (var page in document.GetPages())
         {
+            pageNumber++;
             var text = page.Text;
-            if (!string.IsNullOrWhiteSpace(text))
+            if (string.IsNullOrWhiteSpace(text))
             {
-                builder.AppendLine(text);
+                continue;
             }
+
+            if (builder.Length > 0)
+            {
+                builder.AppendLine();
+                builder.AppendLine();
+            }
+
+            builder.AppendLine($"[Page {pageNumber}]");
+            builder.AppendLine(text);
         }
 
         return builder.ToString().Trim();

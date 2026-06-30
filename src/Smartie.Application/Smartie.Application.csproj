@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Smartie.Domain\Smartie.Domain.csproj" />
+    <ProjectReference Include="..\Smartie.Contracts\Smartie.Contracts.csproj" />
+    <ProjectReference Include="..\Smartie.Plugins.Abstractions\Smartie.Plugins.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -11,7 +13,6 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

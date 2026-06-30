@@ -1,0 +1,22 @@
+<div class="smartie-card smartie-empty">
+    @if (!string.IsNullOrEmpty(Icon))
+    {
+        <div class="smartie-empty-icon" aria-hidden="true">@Icon</div>
+    }
+    <h3 class="smartie-empty-title">@Title</h3>
+    @if (!string.IsNullOrEmpty(Subtitle))
+    {
+        <p class="smartie-empty-subtitle">@Subtitle</p>
+    }
+    @if (Action is not null)
+    {
+        <div>@Action</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public RenderFragment? Action { get; set; }
+}

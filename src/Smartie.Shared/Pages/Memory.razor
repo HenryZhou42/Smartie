@@ -1,0 +1,431 @@
+@page "/memory"
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Smartie · Memory</PageTitle>
+
+<div class="memory-page">
+    <header class="memory-header">
+        <div>
+            <h1>Smart Memory</h1>
+            <p>Persistent personal facts Smartie remembers across conversations.</p>
+        </div>
+        <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="ShowCreateForm">Add Memory</SmartieButton>
+    </header>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="memory-error">@_error</div>
+    }
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="memory-status">@_status</div>
+    }
+
+    <section class="dashboard-card memory-search-card">
+        <div class="memory-search-row">
+            <input type="search"
+                   class="memory-search-input smartie-input"
+                   placeholder="Search memories…"
+                   @bind="_searchQuery"
+                   @bind:event="oninput"
+                   @onkeyup="HandleSearchKeyUp" />
+            <SmartieButton Variant="SmartieButtonVariant.Primary" Disabled="@_searching" @onclick="SearchAsync">
+                @(_searching ? "Searching…" : "Search")
+            </SmartieButton>
+        </div>
+        <div class="memory-examples">
+            @foreach (var example in _examples)
+            {
+                <button type="button" class="memory-example-chip" @onclick="() => RunExampleAsync(example)">@example</button>
+            }
+        </div>
+    </section>
+
+    @if (_searchResponse is not null)
+    {
+        <section class="dashboard-card memory-results-card">
+            <h2 class="card-title">Search Results</h2>
+            @if (_searchResponse.Results.Count == 0)
+            {
+                <p class="memory-empty">No matching memories found.</p>
+            }
+            else
+            {
+                <ul class="memory-list">
+                    @foreach (var result in _searchResponse.Results)
+                    {
+                        <li class="memory-item">
+                            <div class="memory-item-header">
+                                <span class="memory-category">@result.Category</span>
+                                <span class="memory-score">@result.Score.ToString("0.00")</span>
+                            </div>
+                            <p class="memory-content">@result.Content</p>
+                        </li>
+                    }
+                </ul>
+            }
+
+            @if (_searchResponse.Developer is not null)
+            {
+                <SmartieDevPanel Title="Search diagnostics">
+                    <dl class="smartie-stat-grid">
+                        <SmartieStatCard Label="Memory hits" Value="@_searchResponse.Developer.MemoryHits.ToString()" />
+                        <SmartieStatCard Label="Retrieved memories" Value="@_searchResponse.Developer.RetrievedCount.ToString()" />
+                        <SmartieStatCard Label="Similarity score" Value="@FormatScore(_searchResponse.Developer.TopScore)" />
+                        <SmartieStatCard Label="Memory count" Value="@_searchResponse.Developer.TotalMemoryCount.ToString()" />
+                    </dl>
+                </SmartieDevPanel>
+            }
+        </section>
+    }
+
+    <section class="dashboard-card memory-filter-card">
+        <div class="memory-filter-row">
+            <label>
+                Category
+                <select class="smartie-select" @bind="_categoryFilter" @bind:after="LoadMemoriesAsync">
+                    <option value="">All</option>
+                    @foreach (var category in _categories)
+                    {
+                        <option value="@category">@category</option>
+                    }
+                </select>
+            </label>
+            <label class="smartie-check memory-checkbox">
+                <input type="checkbox" @bind="_pinnedOnly" @bind:after="LoadMemoriesAsync" />
+                Pinned only
+            </label>
+        </div>
+    </section>
+
+    @if (_loading)
+    {
+        <div class="memory-loading">Loading memories…</div>
+    }
+    else
+    {
+        <section class="dashboard-card memory-list-card">
+            <h2 class="card-title">@(_pinnedOnly ? "Pinned Memories" : "Recent Memories")</h2>
+            @if (_memories.Count == 0)
+            {
+                <SmartieEmptyState Icon="🧠"
+                                   Title="No memories yet"
+                                   Subtitle="Chat with Smartie or add one manually.">
+                    <Action>
+                        <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="ShowCreateForm">Add Memory</SmartieButton>
+                    </Action>
+                </SmartieEmptyState>
+            }
+            else
+            {
+                <div class="memory-grid">
+                    @foreach (var memory in _memories)
+                    {
+                        <article class="memory-card dashboard-card">
+                            @if (_editingId == memory.Id)
+                            {
+                                <div class="memory-edit-form">
+                                    <textarea class="memory-edit-input smartie-input" @bind="_editContent" rows="3"></textarea>
+                                    <div class="memory-edit-meta">
+                                        <select class="smartie-select" @bind="_editCategory">
+                                            @foreach (var category in _categories)
+                                            {
+                                                <option value="@category">@category</option>
+                                            }
+                                        </select>
+                                        <select class="smartie-select" @bind="_editImportance">
+                                            @foreach (var importance in _importanceLevels)
+                                            {
+                                                <option value="@importance">@importance</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="memory-item-actions">
+                                        <button type="button" class="btn-table" @onclick="() => SaveEditAsync(memory.Id)">Save</button>
+                                        <button type="button" class="btn-table" @onclick="CancelEdit">Cancel</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="memory-card-header">
+                                    <h3 class="smartie-card-title">@GetMemoryTitle(memory)</h3>
+                                    @if (memory.Pinned)
+                                    {
+                                        <span class="memory-pinned-badge smartie-chip">Pinned</span>
+                                    }
+                                </div>
+                                <div class="memory-card-tags">
+                                    <span class="memory-category smartie-chip">@memory.Category</span>
+                                    <span class="memory-importance @GetImportanceClass(memory.Importance)">@memory.Importance</span>
+                                </div>
+                                <p class="memory-content">@memory.Content</p>
+                                <div class="memory-item-footer">
+                                    <span class="memory-meta smartie-caption">Updated @FormatUpdated(memory.UpdatedAt)</span>
+                                    <div class="memory-item-actions">
+                                        <button type="button" class="btn-table" @onclick="() => BeginEdit(memory)">Edit</button>
+                                        <button type="button" class="btn-table" @onclick="() => TogglePinAsync(memory)">
+                                            @(memory.Pinned ? "Unpin" : "Pin")
+                                        </button>
+                                        <button type="button" class="btn-table btn-table-danger" @onclick="() => DeleteAsync(memory.Id)">Delete</button>
+                                    </div>
+                                </div>
+                            }
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+
+    @if (_showCreateForm)
+    {
+        <section class="dashboard-card memory-create-card">
+            <h2 class="card-title">Add Memory</h2>
+            <textarea class="memory-edit-input smartie-input" @bind="_createContent" rows="3" placeholder="Henry prefers Gemini"></textarea>
+            <div class="memory-edit-meta">
+                <select class="smartie-select" @bind="_createCategory">
+                    @foreach (var category in _categories)
+                    {
+                        <option value="@category">@category</option>
+                    }
+                </select>
+                <select class="smartie-select" @bind="_createImportance">
+                    @foreach (var importance in _importanceLevels)
+                    {
+                        <option value="@importance">@importance</option>
+                    }
+                </select>
+            </div>
+            <div class="memory-item-actions">
+                <button type="button" class="btn-knowledge btn-knowledge-primary" @onclick="CreateAsync">Save Memory</button>
+                <button type="button" class="btn-knowledge btn-knowledge-ghost" @onclick="HideCreateForm">Cancel</button>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private readonly string[] _categories =
+        ["Preferences", "Projects", "People", "Work", "Interests", "Goals", "Technical", "Custom"];
+
+    private readonly string[] _importanceLevels = ["Low", "Medium", "High", "Pinned"];
+
+    private readonly string[] _examples =
+        ["Gemini", "Smartie", "C#", "Edmonton", "dark mode"];
+
+    private List<MemoryDto> _memories = new();
+    private MemorySearchResponseDto? _searchResponse;
+    private string _searchQuery = string.Empty;
+    private string _categoryFilter = string.Empty;
+    private bool _pinnedOnly;
+    private bool _loading = true;
+    private bool _searching;
+    private bool _showCreateForm;
+    private string? _error;
+    private string? _status;
+
+    private Guid? _editingId;
+    private string _editContent = string.Empty;
+    private string _editCategory = "Custom";
+    private string _editImportance = "Medium";
+
+    private string _createContent = string.Empty;
+    private string _createCategory = "Preferences";
+    private string _createImportance = "High";
+
+    [SupplyParameterFromQuery(Name = "pinned")]
+    public bool PinnedOnLoad { get; set; }
+
+    [SupplyParameterFromQuery(Name = "search")]
+    public bool SearchOnLoad { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (PinnedOnLoad)
+        {
+            _pinnedOnly = true;
+        }
+
+        await LoadMemoriesAsync();
+
+        if (SearchOnLoad)
+        {
+            _searchQuery = string.Empty;
+        }
+    }
+
+    private async Task LoadMemoriesAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _memories = (await Api.GetMemoriesAsync(
+                string.IsNullOrWhiteSpace(_categoryFilter) ? null : _categoryFilter,
+                _pinnedOnly ? true : null)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            return;
+        }
+
+        _searching = true;
+        _error = null;
+        try
+        {
+            _searchResponse = await Api.SearchMemoriesAsync(_searchQuery.Trim());
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _searchResponse = null;
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+
+    private async Task HandleSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchAsync();
+        }
+    }
+
+    private Task RunExampleAsync(string example)
+    {
+        _searchQuery = example;
+        return SearchAsync();
+    }
+
+    private void ShowCreateForm()
+    {
+        _showCreateForm = true;
+        _createContent = string.Empty;
+    }
+
+    private void HideCreateForm() => _showCreateForm = false;
+
+    private async Task CreateAsync()
+    {
+        try
+        {
+            await Api.CreateMemoryAsync(_createContent, _createCategory, _createImportance);
+            HideCreateForm();
+            _status = "Memory saved.";
+            await LoadMemoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void BeginEdit(MemoryDto memory)
+    {
+        _editingId = memory.Id;
+        _editContent = memory.Content;
+        _editCategory = memory.Category;
+        _editImportance = memory.Importance;
+    }
+
+    private void CancelEdit() => _editingId = null;
+
+    private async Task SaveEditAsync(Guid id)
+    {
+        try
+        {
+            await Api.UpdateMemoryAsync(id, _editContent, _editCategory, _editImportance);
+            _editingId = null;
+            _status = "Memory updated.";
+            await LoadMemoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task TogglePinAsync(MemoryDto memory)
+    {
+        try
+        {
+            await Api.SetMemoryPinnedAsync(memory.Id, !memory.Pinned);
+            await LoadMemoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        try
+        {
+            await Api.DeleteMemoryAsync(id);
+            _status = "Memory deleted.";
+            await LoadMemoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private static string FormatScore(float? score) =>
+        score is float value ? value.ToString("0.00") : "—";
+
+    private static string GetImportanceClass(string importance) =>
+        importance.ToLowerInvariant() switch
+        {
+            "high" or "pinned" => "is-high",
+            "low" => "is-low",
+            _ => "is-medium"
+        };
+
+    private static string GetMemoryTitle(MemoryDto memory)
+    {
+        var content = memory.Content.Trim();
+        if (content.Length <= 48)
+        {
+            return content;
+        }
+
+        return content[..45] + "...";
+    }
+
+    private static string FormatUpdated(DateTimeOffset updatedAt)
+    {
+        var local = updatedAt.ToLocalTime();
+        var delta = DateTimeOffset.Now - local;
+        if (delta.TotalDays >= 2)
+        {
+            return local.ToString("MMM d");
+        }
+
+        if (delta.TotalDays >= 1)
+        {
+            return $"{(int)delta.TotalDays} days ago";
+        }
+
+        return local.ToString("g");
+    }
+}

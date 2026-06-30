@@ -1,0 +1,239 @@
+@using Smartie.Shared.Pages
+
+@if (IsVisible)
+{
+    <div class="smartie-dialog-backdrop automation-dialog-backdrop" @onclick="CancelAsync">
+        <div class="smartie-dialog automation-dialog dashboard-card" @onclick:stopPropagation="true">
+            <header class="smartie-dialog-header automation-dialog-header">
+                <h2 class="smartie-card-title">@(Automation is null ? "Create Automation" : "Edit Automation")</h2>
+                <p class="smartie-caption">Trigger → Condition → Action</p>
+            </header>
+
+            <div class="smartie-dialog-body automation-dialog-body">
+                <label class="automation-field">
+                    <span>Name</span>
+                    <input class="smartie-input" @bind="_name" />
+                </label>
+                <label class="automation-field">
+                    <span>Description</span>
+                    <textarea class="smartie-input" @bind="_description" rows="2"></textarea>
+                </label>
+
+                <section class="automation-builder-step dashboard-card">
+                    <h3 class="smartie-card-title">Trigger</h3>
+                    <select class="smartie-select" @bind="_triggerType">
+                        @foreach (var trigger in Options?.TriggerTypes ?? Array.Empty<string>())
+                        {
+                            <option value="@trigger">@trigger</option>
+                        }
+                    </select>
+                    @if (_triggerType == "Scheduled")
+                    {
+                        <div class="automation-builder-row">
+                            <select class="smartie-select" @bind="_schedule">
+                                @foreach (var frequency in Options?.ScheduleFrequencies ?? Array.Empty<string>())
+                                {
+                                    <option value="@frequency">@frequency</option>
+                                }
+                            </select>
+                            <input type="text" class="smartie-input" @bind="_time" placeholder="08:00" />
+                            @if (_schedule == "Weekly")
+                            {
+                                <select class="smartie-select" @bind="_dayOfWeek">
+                                    @foreach (var day in DaysOfWeek)
+                                    {
+                                        <option value="@day">@day</option>
+                                    }
+                                </select>
+                            }
+                        </div>
+                    }
+                </section>
+
+                <section class="automation-builder-step dashboard-card">
+                    <h3 class="smartie-card-title">Condition <span class="automation-optional">(optional)</span></h3>
+                    <select class="smartie-select" @bind="_conditionType">
+                        @foreach (var condition in Options?.ConditionTypes ?? Array.Empty<string>())
+                        {
+                            <option value="@condition">@condition</option>
+                        }
+                    </select>
+                    @if (_conditionType is not "None")
+                    {
+                        <input class="smartie-input" placeholder="Condition value" @bind="_conditionValue" />
+                    }
+                </section>
+
+                <section class="automation-builder-step dashboard-card">
+                    <h3 class="smartie-card-title">Action</h3>
+                    <select class="smartie-select" @bind="_actionType">
+                        @foreach (var action in Options?.ActionTypes ?? Array.Empty<string>())
+                        {
+                            <option value="@action">@action</option>
+                        }
+                    </select>
+                    <input class="smartie-input" placeholder="Title / task title" @bind="_title" />
+                    <textarea class="smartie-input" placeholder="Prompt / description / note content" @bind="_prompt" rows="4"></textarea>
+                    <label class="automation-check smartie-check">
+                        <input type="checkbox" @bind="_saveAsNote" />
+                        Save AI output as note
+                    </label>
+                    <label class="automation-check smartie-check">
+                        <input type="checkbox" @bind="_runFullIndex" />
+                        Run extract / chunk / embed pipeline
+                    </label>
+                </section>
+
+                <label class="automation-check smartie-check">
+                    <input type="checkbox" @bind="_enabled" />
+                    Enabled
+                </label>
+            </div>
+
+            <footer class="smartie-dialog-footer automation-dialog-footer">
+                <SmartieButton Variant="SmartieButtonVariant.Secondary" @onclick="CancelAsync">Cancel</SmartieButton>
+                <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="SaveAsync">Save</SmartieButton>
+            </footer>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public AutomationDto? Automation { get; set; }
+    [Parameter] public AutomationOptionsDto? Options { get; set; }
+    [Parameter] public EventCallback<Automations.AutomationBuilderModel> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private string _triggerType = "Manual";
+    private string _actionType = "RunPrompt";
+    private string _schedule = "Daily";
+    private string _time = "08:00";
+    private string _dayOfWeek = "Sunday";
+    private string _conditionType = "None";
+    private string? _conditionValue;
+    private string? _prompt;
+    private string? _title;
+    private bool _saveAsNote;
+    private bool _runFullIndex;
+    private bool _enabled = true;
+
+    private static readonly string[] DaysOfWeek =
+        ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+    protected override void OnParametersSet()
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        if (Automation is null)
+        {
+            ResetForm();
+            return;
+        }
+
+        _name = Automation.Name;
+        _description = Automation.Description;
+        _triggerType = Automation.TriggerType;
+        _actionType = Automation.ActionType;
+        _enabled = Automation.Enabled;
+        ParseConfig(Automation.ConfigJson);
+    }
+
+    private void ResetForm()
+    {
+        _name = string.Empty;
+        _description = string.Empty;
+        _triggerType = "Manual";
+        _actionType = "RunPrompt";
+        _schedule = "Daily";
+        _time = "08:00";
+        _dayOfWeek = "Sunday";
+        _conditionType = "None";
+        _conditionValue = null;
+        _prompt = null;
+        _title = null;
+        _saveAsNote = false;
+        _runFullIndex = false;
+        _enabled = true;
+    }
+
+    private void ParseConfig(string configJson)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(configJson);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("trigger", out var trigger))
+            {
+                _schedule = trigger.TryGetProperty("schedule", out var schedule) ? schedule.GetString() ?? "Daily" : "Daily";
+                _time = trigger.TryGetProperty("time", out var time) ? time.GetString() ?? "08:00" : "08:00";
+                _dayOfWeek = trigger.TryGetProperty("dayOfWeek", out var day) ? day.GetString() ?? "Sunday" : "Sunday";
+            }
+
+            if (root.TryGetProperty("condition", out var condition))
+            {
+                _conditionType = condition.TryGetProperty("type", out var type) ? type.GetString() ?? "None" : "None";
+                _conditionValue = condition.TryGetProperty("value", out var value) ? value.GetString() : null;
+            }
+
+            if (root.TryGetProperty("action", out var action))
+            {
+                _prompt = action.TryGetProperty("prompt", out var prompt) ? prompt.GetString() : null;
+                _title = action.TryGetProperty("title", out var title) ? title.GetString() : null;
+                _saveAsNote = action.TryGetProperty("saveAsNote", out var save) && save.GetBoolean();
+                _runFullIndex = action.TryGetProperty("runFullIndex", out var index) && index.GetBoolean();
+            }
+        }
+        catch
+        {
+            // Keep defaults when config is invalid.
+        }
+    }
+
+    private string BuildConfigJson()
+    {
+        var payload = new
+        {
+            trigger = new
+            {
+                schedule = _schedule,
+                time = _time,
+                dayOfWeek = _schedule == "Weekly" ? _dayOfWeek : null
+            },
+            condition = new
+            {
+                type = _conditionType,
+                value = _conditionType == "None" ? null : _conditionValue
+            },
+            action = new
+            {
+                prompt = _prompt,
+                title = _title,
+                saveAsNote = _saveAsNote,
+                runFullIndex = _runFullIndex
+            }
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(payload);
+    }
+
+    private async Task SaveAsync()
+    {
+        await OnSave.InvokeAsync(new Automations.AutomationBuilderModel
+        {
+            Name = _name,
+            Description = _description,
+            TriggerType = _triggerType,
+            ActionType = _actionType,
+            ConfigJson = BuildConfigJson(),
+            Enabled = _enabled
+        });
+    }
+
+    private Task CancelAsync() => OnCancel.InvokeAsync();
+}

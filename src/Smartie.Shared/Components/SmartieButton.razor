@@ -1,0 +1,25 @@
+<button type="@Type"
+        class="@CssClass"
+        disabled="@Disabled"
+        @onclick="OnClick"
+        @attributes="AdditionalAttributes">
+    @ChildContent
+</button>
+
+@code {
+    [Parameter] public SmartieButtonVariant Variant { get; set; } = SmartieButtonVariant.Primary;
+    [Parameter] public string Type { get; set; } = "button";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string CssClass => Variant switch
+    {
+        SmartieButtonVariant.Primary => "smartie-btn smartie-btn-primary",
+        SmartieButtonVariant.Secondary => "smartie-btn smartie-btn-secondary",
+        SmartieButtonVariant.Ghost => "smartie-btn smartie-btn-ghost",
+        SmartieButtonVariant.Danger => "smartie-btn smartie-btn-danger",
+        _ => "smartie-btn smartie-btn-primary"
+    };
+}

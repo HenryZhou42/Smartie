@@ -241,6 +241,82 @@ internal sealed class PassthroughAttachedDocumentPromptBuilder : IAttachedDocume
         Task.FromResult(userMessage);
 }
 
+internal sealed class NoOpMemoryService : IMemoryService
+{
+    public Task<Memory> StoreMemoryAsync(
+        Guid userId,
+        string content,
+        MemoryCategory category,
+        MemoryImportance importance,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new Memory { Content = content, Category = category, Importance = importance });
+
+    public Task<IReadOnlyList<MemorySearchResult>> SearchMemoryAsync(
+        Guid userId,
+        string query,
+        int topK,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<MemorySearchResult>>(Array.Empty<MemorySearchResult>());
+
+    public Task<bool> DeleteMemoryAsync(Guid userId, Guid memoryId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
+
+    public Task<Memory?> PinMemoryAsync(
+        Guid userId,
+        Guid memoryId,
+        bool pinned,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<Memory?>(null);
+
+    public Task<Memory?> UpdateMemoryAsync(
+        Guid userId,
+        Guid memoryId,
+        string content,
+        MemoryCategory category,
+        MemoryImportance importance,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<Memory?>(null);
+
+    public Task<IReadOnlyList<Memory>> ListMemoriesAsync(
+        Guid userId,
+        MemoryCategory? category,
+        bool? pinnedOnly,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Memory>>(Array.Empty<Memory>());
+
+    public Task ExtractAndStoreFromUserMessageAsync(
+        Guid userId,
+        string userMessage,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    public Task<MemorySettingsSnapshot> GetSettingsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new MemorySettingsSnapshot(true, 200, 365, 0));
+
+    public Task UpdateSettingsAsync(
+        Guid userId,
+        MemorySettingsUpdate update,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    public Task<MemoryDeveloperStats> GetDeveloperStatsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new MemoryDeveloperStats(0, 0, null, 5, 45));
+}
+
+internal sealed class NoOpMemoryPromptBuilder : IMemoryPromptBuilder
+{
+    public Task<(string? PromptBlock, MemoryRetrievalDiagnostics Diagnostics)> BuildMemoryContextAsync(
+        Guid userId,
+        string query,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<(string?, MemoryRetrievalDiagnostics)>(
+            (null, new MemoryRetrievalDiagnostics(0, 0, null, 0, 0)));
+}
+
 internal sealed class RecordingAttachedDocumentPromptBuilder : IAttachedDocumentPromptBuilder
 {
     public IReadOnlyList<MessageAttachment>? LastAttachments { get; private set; }

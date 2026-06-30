@@ -1,0 +1,455 @@
+@page "/tasks"
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Smartie · Tasks</PageTitle>
+
+<div class="tasks-page">
+    <header class="tasks-header">
+        <div>
+            <h1>Tasks</h1>
+            <p>Lightweight personal tasks — stored locally on this device.</p>
+        </div>
+        <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="ShowCreateDialog">Create Task</SmartieButton>
+    </header>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="tasks-error">@_error</div>
+    }
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <div class="tasks-status">@_status</div>
+    }
+
+    <section class="dashboard-card tasks-quick-add-card">
+        <label class="tasks-quick-add-label" for="tasks-quick-add">Quick Add</label>
+        <div class="tasks-quick-add-row">
+            <input id="tasks-quick-add"
+                   class="tasks-quick-add-input"
+                   type="text"
+                   placeholder="What needs to be done?"
+                   @bind="_quickAddTitle"
+                   @onkeydown="HandleQuickAddKeyDown" />
+            <button type="button"
+                    class="btn-knowledge btn-knowledge-primary"
+                    disabled="@_saving"
+                    @onclick="QuickAddAsync">
+                Add
+            </button>
+        </div>
+    </section>
+
+    <section class="dashboard-card tasks-toolbar-card">
+        <div class="tasks-toolbar-row">
+            <input type="search"
+                   class="tasks-search-input"
+                   placeholder="Search tasks…"
+                   @bind="_search"
+                   @bind:event="oninput"
+                   @bind:after="LoadTasksAsync" />
+            <select class="tasks-select" @bind="_sort" @bind:after="LoadTasksAsync">
+                @foreach (var option in SortOptions)
+                {
+                    <option value="@option.Key">@option.Label</option>
+                }
+            </select>
+        </div>
+
+        <div class="tasks-view-tabs">
+            @foreach (var view in ViewOptions)
+            {
+                <button type="button"
+                        class="tasks-view-tab @(_view == view.Key ? "is-active" : null)"
+                        @onclick="() => SetViewAsync(view.Key)">
+                    @view.Label
+                </button>
+            }
+        </div>
+    </section>
+
+    @if (_loading)
+    {
+        <div class="tasks-loading">Loading tasks…</div>
+    }
+    else if (_tasks.Count == 0)
+    {
+        <SmartieEmptyState Icon="📝"
+                           Title="No tasks yet"
+                           Subtitle="Create your first task to stay on top of what matters.">
+            <Action>
+                <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="ShowCreateDialog">Create Task</SmartieButton>
+            </Action>
+        </SmartieEmptyState>
+    }
+    else
+    {
+        <div class="tasks-grid">
+            @foreach (var task in _tasks)
+            {
+                <article class="dashboard-card task-card @GetTaskCardClass(task)" @onclick="() => OpenTask(task)">
+                    <header class="task-card-header">
+                        <h3 class="task-card-title">@task.Title</h3>
+                        @if (task.Pinned)
+                        {
+                            <span class="task-pin-badge" title="Pinned"><NavIcon Name="pin" /></span>
+                        }
+                    </header>
+
+                    <div class="task-card-badges">
+                        <span class="task-badge task-priority @GetPriorityClass(task.Priority)">@task.Priority</span>
+                        <span class="task-badge task-status @GetStatusClass(task.Status)">@FormatStatus(task.Status)</span>
+                    </div>
+
+                    @if (task.DueDate is not null)
+                    {
+                        <p class="task-due">@FormatDueDate(task.DueDate.Value)</p>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(task.Description))
+                    {
+                        <p class="task-preview">@GetDescriptionPreview(task.Description)</p>
+                    }
+
+                    <footer class="task-card-footer" @onclick:stopPropagation="true">
+                        @if (task.Status != "Completed")
+                        {
+                            <button type="button" class="btn-table" @onclick="() => CompleteTaskAsync(task.Id)">Complete</button>
+                        }
+                        <button type="button" class="btn-table" @onclick="() => OpenTask(task)">Edit</button>
+                    </footer>
+                </article>
+            }
+        </div>
+    }
+
+    @if (_developer is not null)
+    {
+        <SmartieDevPanel>
+            <dl class="smartie-stat-grid">
+                <SmartieStatCard Label="Task count" Value="@_developer.TaskCount.ToString()" />
+                <SmartieStatCard Label="Completed count" Value="@_developer.CompletedCount.ToString()" />
+                <SmartieStatCard Label="Database size" Value="@FormatBytes(_developer.DatabaseSizeBytes)" />
+            </dl>
+        </SmartieDevPanel>
+    }
+</div>
+
+<TaskDetailDialog IsVisible="_detailOpen"
+                  Task="_selectedTask"
+                  OnSave="SaveTaskAsync"
+                  OnDelete="DeleteSelectedTaskAsync"
+                  OnCancel="CloseDetailAsync" />
+
+@code {
+    private readonly (string Key, string Label)[] ViewOptions =
+    [
+        ("All", "All"),
+        ("Today", "Today"),
+        ("Upcoming", "Upcoming"),
+        ("Completed", "Completed"),
+        ("Pinned", "Pinned"),
+        ("Archived", "Archived")
+    ];
+
+    private readonly (string Key, string Label)[] SortOptions =
+    [
+        ("DueDate", "Due Date"),
+        ("Priority", "Priority"),
+        ("UpdatedAt", "Recently Updated"),
+        ("CreatedAt", "Recently Created"),
+        ("Title", "Title")
+    ];
+
+    private List<TaskDto> _tasks = new();
+    private TaskDto? _selectedTask;
+    private TaskDeveloperDto? _developer;
+    private string _view = "All";
+    private string _search = string.Empty;
+    private string _sort = "DueDate";
+    private string _quickAddTitle = string.Empty;
+    private bool _loading = true;
+    private bool _saving;
+    private bool _detailOpen;
+    private string? _error;
+    private string? _status;
+
+    [SupplyParameterFromQuery(Name = "filter")]
+    public string? FilterOnLoad { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(FilterOnLoad) &&
+            ViewOptions.Any(v => v.Key.Equals(FilterOnLoad, StringComparison.OrdinalIgnoreCase)))
+        {
+            _view = ViewOptions.First(v => v.Key.Equals(FilterOnLoad, StringComparison.OrdinalIgnoreCase)).Key;
+        }
+
+        await LoadTasksAsync();
+        await LoadDeveloperAsync();
+    }
+
+    private async Task LoadTasksAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _tasks = (await Api.GetTasksAsync(
+                view: _view,
+                search: string.IsNullOrWhiteSpace(_search) ? null : _search.Trim(),
+                sort: _sort)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _tasks = new List<TaskDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadDeveloperAsync()
+    {
+        try
+        {
+            _developer = await Api.GetTaskDeveloperAsync();
+        }
+        catch
+        {
+            _developer = null;
+        }
+    }
+
+    private async Task SetViewAsync(string view)
+    {
+        _view = view;
+        await LoadTasksAsync();
+    }
+
+    private async Task HandleQuickAddKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await QuickAddAsync();
+        }
+    }
+
+    private async Task QuickAddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_quickAddTitle))
+        {
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            await Api.CreateTaskAsync(new CreateTaskRequest(_quickAddTitle.Trim()));
+            _quickAddTitle = string.Empty;
+            _status = "Task created.";
+            await LoadTasksAsync();
+            await LoadDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void ShowCreateDialog()
+    {
+        _selectedTask = new TaskDto(
+            Guid.Empty,
+            string.Empty,
+            null,
+            "Pending",
+            "Medium",
+            null,
+            false,
+            false,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow,
+            null);
+        _detailOpen = true;
+    }
+
+    private void OpenTask(TaskDto task)
+    {
+        _selectedTask = task;
+        _detailOpen = true;
+    }
+
+    private async Task SaveTaskAsync(TaskDetailDialog.TaskDetailResult result)
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (_selectedTask is null)
+            {
+                return;
+            }
+
+            if (_selectedTask.Id == Guid.Empty)
+            {
+                await Api.CreateTaskAsync(new CreateTaskRequest(
+                    result.Title,
+                    result.Description,
+                    result.Priority,
+                    result.Status,
+                    result.DueDate));
+                _status = "Task created.";
+            }
+            else
+            {
+                await Api.UpdateTaskAsync(
+                    _selectedTask.Id,
+                    new UpdateTaskRequest(
+                        result.Title,
+                        result.Description,
+                        result.Priority,
+                        result.Status,
+                        result.DueDate,
+                        result.Pinned,
+                        result.Archived));
+                _status = "Task updated.";
+            }
+
+            CloseDetailAsync();
+            await LoadTasksAsync();
+            await LoadDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteSelectedTaskAsync()
+    {
+        if (_selectedTask is null || _selectedTask.Id == Guid.Empty)
+        {
+            CloseDetailAsync();
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await Api.DeleteTaskAsync(_selectedTask.Id);
+            _status = "Task deleted.";
+            CloseDetailAsync();
+            await LoadTasksAsync();
+            await LoadDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task CompleteTaskAsync(Guid id)
+    {
+        try
+        {
+            await Api.CompleteTaskAsync(id);
+            _status = "Task completed.";
+            await LoadTasksAsync();
+            await LoadDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void CloseDetailAsync()
+    {
+        _detailOpen = false;
+        _selectedTask = null;
+    }
+
+    private static string GetDescriptionPreview(string description) =>
+        description.Length <= 120 ? description : description[..117] + "...";
+
+    private static string FormatStatus(string status) => status switch
+    {
+        "InProgress" => "In Progress",
+        _ => status
+    };
+
+    private static string FormatDueDate(DateTimeOffset dueDate)
+    {
+        var local = dueDate.ToLocalTime();
+        var today = DateTime.Today;
+        var dueDay = local.Date;
+
+        if (dueDay == today)
+        {
+            return "Due Today";
+        }
+
+        if (dueDay == today.AddDays(1))
+        {
+            return "Due Tomorrow";
+        }
+
+        if (dueDay == today.AddDays(-1))
+        {
+            return "Due Yesterday";
+        }
+
+        return $"Due {local:MMM d}";
+    }
+
+    private static string GetPriorityClass(string priority) => priority.ToLowerInvariant() switch
+    {
+        "critical" => "is-critical",
+        "high" => "is-high",
+        "low" => "is-low",
+        _ => "is-medium"
+    };
+
+    private static string GetStatusClass(string status) => status switch
+    {
+        "Completed" => "is-completed",
+        "InProgress" => "is-progress",
+        "Cancelled" => "is-cancelled",
+        _ => "is-pending"
+    };
+
+    private static string GetTaskCardClass(TaskDto task) =>
+        task.Status == "Completed" ? "is-completed-card" : string.Empty;
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+}

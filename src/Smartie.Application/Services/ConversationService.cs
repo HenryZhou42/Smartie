@@ -17,6 +17,8 @@ public sealed class ConversationService : IConversationService
     private readonly IMessageAttachmentRepository _attachments;
     private readonly IChatAttachmentStorage _chatAttachmentStorage;
     private readonly IAttachedDocumentPromptBuilder _documentPromptBuilder;
+    private readonly IMemoryService _memory;
+    private readonly IMemoryPromptBuilder _memoryPromptBuilder;
     private readonly IChatAiService _ai;
     private readonly ILogger<ConversationService> _logger;
 
@@ -25,6 +27,8 @@ public sealed class ConversationService : IConversationService
         IMessageAttachmentRepository attachments,
         IChatAttachmentStorage chatAttachmentStorage,
         IAttachedDocumentPromptBuilder documentPromptBuilder,
+        IMemoryService memory,
+        IMemoryPromptBuilder memoryPromptBuilder,
         IChatAiService ai,
         ILogger<ConversationService> logger)
     {
@@ -32,6 +36,8 @@ public sealed class ConversationService : IConversationService
         _attachments = attachments;
         _chatAttachmentStorage = chatAttachmentStorage;
         _documentPromptBuilder = documentPromptBuilder;
+        _memory = memory;
+        _memoryPromptBuilder = memoryPromptBuilder;
         _ai = ai;
         _logger = logger;
     }
@@ -132,6 +138,17 @@ public sealed class ConversationService : IConversationService
         {
             await _repository.UpdateTitleAsync(conversationId, BuildTitle(trimmed), cancellationToken)
                 .ConfigureAwait(false);
+        }
+
+        try
+        {
+            await _memory
+                .ExtractAndStoreFromUserMessageAsync(conversation.UserId, trimmed, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Memory extraction failed for conversation {ConversationId}.", conversationId);
         }
 
         var refreshed = await _repository.FindAsync(conversationId, cancellationToken).ConfigureAwait(false);
@@ -253,30 +270,45 @@ public sealed class ConversationService : IConversationService
             return copy;
         }
 
+        var (memoryBlock, diagnostics) = await _memoryPromptBuilder
+            .BuildMemoryContextAsync(userId, lastUser.Content, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (diagnostics.RetrievedCount > 0)
+        {
+            _logger.LogInformation(
+                "Retrieved {MemoryCount} memories for prompt injection (top score {TopScore}).",
+                diagnostics.RetrievedCount,
+                diagnostics.TopScore);
+        }
+
         var messageAttachments = originalLastUser.Attachments.Count > 0
             ? originalLastUser.Attachments.OrderBy(a => a.CreatedAt).ThenBy(a => a.Id).ToList()
             : await _attachments.GetForMessageAsync(originalLastUser.Id, cancellationToken).ConfigureAwait(false);
 
-        if (messageAttachments.Count == 0)
+        var augmented = messageAttachments.Count > 0
+            ? await _documentPromptBuilder
+                .BuildAugmentedUserMessageAsync(userId, lastUser.Content, messageAttachments, cancellationToken)
+                .ConfigureAwait(false)
+            : lastUser.Content;
+
+        if (!string.IsNullOrWhiteSpace(memoryBlock))
         {
-            _logger.LogDebug(
-                "No attachments on last user message {MessageId}; sending question without file context.",
-                originalLastUser.Id);
-            return copy;
+            lastUser.Content = messageAttachments.Count > 0
+                ? memoryBlock + Environment.NewLine + Environment.NewLine + augmented
+                : memoryBlock + Environment.NewLine + Environment.NewLine + "User Question:" + Environment.NewLine + augmented;
+        }
+        else
+        {
+            lastUser.Content = augmented;
         }
 
-        _logger.LogInformation(
-            "Augmenting last user message {MessageId} with {AttachmentCount} attachment(s).",
-            originalLastUser.Id,
-            messageAttachments.Count);
-
-        lastUser.Content = await _documentPromptBuilder
-            .BuildAugmentedUserMessageAsync(userId, lastUser.Content, messageAttachments, cancellationToken)
-            .ConfigureAwait(false);
-
-        _logger.LogInformation(
-            "Provider will receive augmented user message of {ContentLength} characters for conversation history.",
-            lastUser.Content.Length);
+        if (messageAttachments.Count > 0 || !string.IsNullOrWhiteSpace(memoryBlock))
+        {
+            _logger.LogInformation(
+                "Provider will receive augmented user message of {ContentLength} characters for conversation history.",
+                lastUser.Content.Length);
+        }
 
         return copy;
     }

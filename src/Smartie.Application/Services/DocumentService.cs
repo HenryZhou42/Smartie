@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Smartie.Application.Abstractions;
+using Smartie.Application.Automation;
 using Smartie.Application.Configuration;
 using Smartie.Domain.Entities;
 
@@ -15,17 +16,20 @@ public sealed class DocumentService : IDocumentService
     private readonly IDocumentRepository _repository;
     private readonly IDocumentStorage _storage;
     private readonly IDocumentExtractionService _extraction;
+    private readonly IAutomationEventPublisher _automations;
     private readonly KnowledgeBaseOptions _options;
 
     public DocumentService(
         IDocumentRepository repository,
         IDocumentStorage storage,
         IDocumentExtractionService extraction,
+        IAutomationEventPublisher automations,
         IOptions<KnowledgeBaseOptions> options)
     {
         _repository = repository;
         _storage = storage;
         _extraction = extraction;
+        _automations = automations;
         _options = options.Value;
     }
 
@@ -97,7 +101,18 @@ public sealed class DocumentService : IDocumentService
         };
 
         await _repository.AddAsync(document, cancellationToken).ConfigureAwait(false);
-        return await _extraction.ExtractAndPersistAsync(documentId, userId, cancellationToken).ConfigureAwait(false);
+        var extracted = await _extraction.ExtractAndPersistAsync(documentId, userId, cancellationToken).ConfigureAwait(false);
+
+        await _automations.PublishAsync(
+            userId,
+            AutomationTriggerType.KnowledgeBaseUpdated,
+            new AutomationEventContext(
+                DocumentType: extracted.Extension,
+                DocumentId: extracted.Id,
+                Keyword: extracted.Name),
+            cancellationToken).ConfigureAwait(false);
+
+        return extracted;
     }
 
     public async Task<Document?> RenameAsync(
@@ -167,6 +182,35 @@ public sealed class DocumentService : IDocumentService
             DocumentExtractionStatus.Failed => "Failed",
             _ => status.ToString()
         };
+
+    public static string GetChunkingStatusLabel(Document document) =>
+        document.IsChunked && document.ChunkCount > 0
+            ? "Chunked"
+            : document.ExtractionStatus == DocumentExtractionStatus.Completed
+                ? "Not Chunked"
+                : "Pending";
+
+    public static string GetEmbeddingStatusLabel(Document document) =>
+        !document.IsChunked || document.ChunkCount <= 0
+            ? "Pending"
+            : document.IsEmbedded
+                ? "Embedded"
+                : document.EmbeddedChunkCount > 0
+                    ? $"Partial ({document.EmbeddedChunkCount}/{document.ChunkCount})"
+                    : "Not Embedded";
+
+    public static string BuildChunkPreview(string content, int maxLength = 80)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return string.Empty;
+        }
+
+        var normalized = string.Join(' ', content.Split(['\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        return normalized.Length <= maxLength
+            ? normalized
+            : normalized[..maxLength].TrimEnd() + "…";
+    }
 
     private bool IsAllowedExtension(string extension) =>
         _options.AllowedExtensions.Any(e =>

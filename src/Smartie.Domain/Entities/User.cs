@@ -18,9 +18,29 @@ public class User
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
+    public bool MemoryEnabled { get; set; } = true;
+
+    public int MaxMemories { get; set; } = 200;
+
+    public int MemoryRetentionDays { get; set; } = 365;
+
+    public TaskSortOption TaskDefaultSort { get; set; } = TaskSortOption.DueDate;
+
+    public TaskPriority TaskDefaultPriority { get; set; } = TaskPriority.Medium;
+
+    public bool TaskShowCompleted { get; set; } = true;
+
+    public int FileMaxRecentFiles { get; set; } = 50;
+
+    public bool FileShowHiddenFiles { get; set; }
+
+    public bool HasCompletedOnboarding { get; set; }
+
     public ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();
 
     public ICollection<AiProviderCredential> AiProviderCredentials { get; set; } = new List<AiProviderCredential>();
 
     public ICollection<Document> Documents { get; set; } = new List<Document>();
+
+    public UserPreferences? Preferences { get; set; }
 }

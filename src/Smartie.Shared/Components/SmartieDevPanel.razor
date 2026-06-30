@@ -1,0 +1,21 @@
+<section class="smartie-dev-panel">
+    <button type="button" class="smartie-dev-toggle" @onclick="Toggle">
+        <span>@Title</span>
+        <span aria-hidden="true">@(_expanded ? "▲" : "▼")</span>
+    </button>
+    <div class="smartie-dev-body" hidden="@(!_expanded)">
+        @ChildContent
+    </div>
+</section>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Developer";
+    [Parameter] public bool DefaultExpanded { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _expanded;
+
+    protected override void OnInitialized() => _expanded = DefaultExpanded;
+
+    private void Toggle() => _expanded = !_expanded;
+}

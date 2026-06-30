@@ -7,6 +7,7 @@
 @inject SmartieApiClient Api
 @inject IDocumentFilePickerService FilePicker
 @inject ISmartieApiEndpointProvider ApiEndpointProvider
+@inject ILocalFileSystemService LocalFiles
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -353,7 +354,7 @@
     private const string ChatDropZoneId = "chat-drop-zone";
     private const int ScrollThresholdPx = 100;
     private const long DefaultMaxAttachmentBytes = 52_428_800;
-    private static readonly string[] SupportedAttachmentExtensions = [".pdf", ".docx", ".txt", ".md", ".markdown"];
+    private static readonly string[] SupportedAttachmentExtensions = DesktopFileTypes.SupportedExtensions;
 
     private List<ConversationDto> _conversations = new();
     private List<MessageDto> _messages = new();
@@ -418,10 +419,21 @@
     [SupplyParameterFromQuery(Name = "c")]
     public Guid? OpenConversationId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "conversations")]
+    public bool OpenConversations { get; set; }
+
+    [SupplyParameterFromQuery(Name = "attachPath")]
+    public string? AttachPath { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         await CheckProviderSetupAsync();
         await LoadConversationsAsync();
+
+        if (OpenConversations)
+        {
+            _conversationsDrawerOpen = true;
+        }
 
         if (OpenConversationId is { } openId && _conversations.Any(c => c.Id == openId))
         {
@@ -430,6 +442,31 @@
         else if (_conversations.Count > 0)
         {
             await SelectConversationAsync(_conversations[0].Id);
+        }
+
+        await HandleAttachPathFromQueryAsync();
+    }
+
+    private async Task HandleAttachPathFromQueryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(AttachPath) || _selectedId is null || !LocalFiles.IsDesktopIntegrationAvailable)
+        {
+            return;
+        }
+
+        try
+        {
+            var fileName = Path.GetFileName(AttachPath);
+            await using var stream = await LocalFiles.OpenReadAsync(AttachPath);
+            var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            memory.Position = 0;
+            await StageLocalFileAsync(fileName, memory);
+            await Api.RecordRecentFileAsync(AttachPath);
+        }
+        catch
+        {
+            // Attachment from Files page is best-effort.
         }
     }
 

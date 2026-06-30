@@ -1,0 +1,82 @@
+.onboarding-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 1.5rem;
+}
+
+.onboarding-card {
+    width: min(520px, 100%);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.onboarding-header h1 {
+    margin: 0.35rem 0;
+}
+
+.onboarding-header p {
+    margin: 0;
+    color: var(--smartie-muted, #8b949e);
+}
+
+.onboarding-features,
+.onboarding-sample-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    color: var(--smartie-muted, #8b949e);
+}
+
+.onboarding-theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+    gap: 0.5rem;
+}
+
+.onboarding-theme-btn {
+    padding: 0.65rem;
+    border-radius: 0.65rem;
+    border: 1px solid var(--smartie-border, #30363d);
+    background: transparent;
+    cursor: pointer;
+}
+
+.onboarding-theme-btn.is-active {
+    border-color: var(--smartie-accent, #7c5cff);
+    color: var(--smartie-accent, #7c5cff);
+}
+
+.onboarding-footer {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+.onboarding-footer-spacer {
+    flex: 1;
+}
+
+.onboarding-final-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.onboarding-status {
+    color: #3fb950;
+}
+
+.onboarding-error {
+    color: #f85149;
+}
+
+.onboarding-note {
+    color: var(--smartie-muted, #8b949e);
+}

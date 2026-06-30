@@ -53,4 +53,9 @@ public interface IAiSettingsService
     /// provider is unavailable or missing required configuration.
     /// </summary>
     Task<ResolvedAiProvider> ResolveAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resolves Google Gemini settings for document embeddings. Requires a stored Google API key.
+    /// </summary>
+    Task<ResolvedEmbeddingProvider> ResolveEmbeddingAsync(Guid userId, CancellationToken cancellationToken = default);
 }

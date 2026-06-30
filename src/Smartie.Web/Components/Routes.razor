@@ -4,4 +4,7 @@
         <RouteView RouteData="routeData" DefaultLayout="typeof(Smartie.Shared.Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
+    <NotFound>
+        <RouteView RouteData="@(new RouteData(typeof(Smartie.Shared.Pages.NotFound), new Dictionary<string, object?>()!))" DefaultLayout="typeof(Smartie.Shared.Layout.MainLayout)" />
+    </NotFound>
 </Router>

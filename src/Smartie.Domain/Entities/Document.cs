@@ -46,5 +46,23 @@ public class Document
 
     public string? ExtractionError { get; set; }
 
+    public bool IsChunked { get; set; }
+
+    public int ChunkCount { get; set; }
+
+    public DateTimeOffset? ChunkedAt { get; set; }
+
+    public bool IsEmbedded { get; set; }
+
+    public int EmbeddedChunkCount { get; set; }
+
+    public string? EmbeddingModel { get; set; }
+
+    public DateTimeOffset? EmbeddedAt { get; set; }
+
+    public bool IsSample { get; set; }
+
+    public ICollection<DocumentChunk> Chunks { get; set; } = new List<DocumentChunk>();
+
     public User? User { get; set; }
 }

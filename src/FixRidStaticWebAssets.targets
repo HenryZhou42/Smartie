@@ -1,0 +1,27 @@
+<Project>
+  <!--
+    Visual Studio builds without RuntimeIdentifier, then publish (win-x64 MSIX) resolves
+    IntermediateOutputPath to obj/.../win-x64/ and LoadStaticWebAssetsBuildManifest fails
+    because staticwebassets.build.json only exists under obj/.../<tfm>/.
+  -->
+  <Target Name="_EnsureStaticWebAssetsManifestForRidPublish"
+          BeforeTargets="LoadStaticWebAssetsBuildManifest;GenerateStaticWebAssetsManifest;GetCurrentProjectPublishStaticWebAssetItems;ComputeReferencedStaticWebAssetsPublishManifest"
+          Condition="'$(RuntimeIdentifier)' != ''">
+    <PropertyGroup>
+      <_StaticWebAssetsNonRidIntermediateOutputPath>$([System.IO.Path]::GetDirectoryName('$(IntermediateOutputPath.TrimEnd(`\`))'))\</_StaticWebAssetsNonRidIntermediateOutputPath>
+      <_StaticWebAssetsManifestDestination>$(IntermediateOutputPath)staticwebassets.build.json</_StaticWebAssetsManifestDestination>
+      <_StaticWebAssetsManifestSource>$(_StaticWebAssetsNonRidIntermediateOutputPath)staticwebassets.build.json</_StaticWebAssetsManifestSource>
+      <_StaticWebAssetsManifestSource Condition="!Exists('$(_StaticWebAssetsManifestSource)')">$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\staticwebassets.build.json</_StaticWebAssetsManifestSource>
+      <_StaticWebAssetsEndpointsDestination>$(IntermediateOutputPath)staticwebassets.build.endpoints.json</_StaticWebAssetsEndpointsDestination>
+      <_StaticWebAssetsEndpointsSource>$(_StaticWebAssetsNonRidIntermediateOutputPath)staticwebassets.build.endpoints.json</_StaticWebAssetsEndpointsSource>
+      <_StaticWebAssetsEndpointsSource Condition="!Exists('$(_StaticWebAssetsEndpointsSource)')">$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\staticwebassets.build.endpoints.json</_StaticWebAssetsEndpointsSource>
+      <_StaticWebAssetsPublishDestination>$(IntermediateOutputPath)staticwebassets.publish.json</_StaticWebAssetsPublishDestination>
+      <_StaticWebAssetsPublishSource>$(_StaticWebAssetsNonRidIntermediateOutputPath)staticwebassets.publish.json</_StaticWebAssetsPublishSource>
+      <_StaticWebAssetsPublishSource Condition="!Exists('$(_StaticWebAssetsPublishSource)')">$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\staticwebassets.publish.json</_StaticWebAssetsPublishSource>
+    </PropertyGroup>
+    <MakeDir Directories="$(IntermediateOutputPath)" Condition="Exists('$(_StaticWebAssetsManifestSource)') and !Exists('$(_StaticWebAssetsManifestDestination)')" />
+    <Copy SourceFiles="$(_StaticWebAssetsManifestSource)" DestinationFiles="$(_StaticWebAssetsManifestDestination)" SkipUnchangedFiles="true" Condition="Exists('$(_StaticWebAssetsManifestSource)') and !Exists('$(_StaticWebAssetsManifestDestination)')" />
+    <Copy SourceFiles="$(_StaticWebAssetsEndpointsSource)" DestinationFiles="$(_StaticWebAssetsEndpointsDestination)" SkipUnchangedFiles="true" Condition="Exists('$(_StaticWebAssetsEndpointsSource)') and !Exists('$(_StaticWebAssetsEndpointsDestination)')" />
+    <Copy SourceFiles="$(_StaticWebAssetsPublishSource)" DestinationFiles="$(_StaticWebAssetsPublishDestination)" SkipUnchangedFiles="true" Condition="Exists('$(_StaticWebAssetsPublishSource)') and !Exists('$(_StaticWebAssetsPublishDestination)')" />
+  </Target>
+</Project>

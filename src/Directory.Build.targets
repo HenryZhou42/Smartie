@@ -1,0 +1,3 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)FixRidStaticWebAssets.targets" Condition="Exists('$(MSBuildThisFileDirectory)FixRidStaticWebAssets.targets')" />
+</Project>

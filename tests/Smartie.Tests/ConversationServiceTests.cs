@@ -24,6 +24,8 @@ public class ConversationServiceTests
             attachments,
             chatAttachmentStorage,
             promptBuilder,
+            new NoOpMemoryService(),
+            new NoOpMemoryPromptBuilder(),
             ai,
             NullLogger<ConversationService>.Instance);
     }

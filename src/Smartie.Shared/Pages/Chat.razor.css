@@ -593,6 +593,7 @@
 .bubble-row {
     display: flex;
     width: 100%;
+    margin-bottom: var(--smartie-chat-message-spacing, 16px);
 }
 
 .bubble-row.from-user {
@@ -763,7 +764,8 @@
 
 .user-bubble {
     padding: 12px 16px;
-    border-radius: var(--smartie-radius-lg, 18px);
+    border-radius: var(--smartie-chat-bubble-radius, var(--smartie-radius-lg, 18px));
+    max-width: var(--smartie-chat-bubble-width, min(720px, 88%));
     background: var(--smartie-user-bubble, linear-gradient(135deg, #6d5cff, #7c5cff));
     color: #fff;
     border-bottom-right-radius: 6px;
@@ -772,7 +774,8 @@
 
 .assistant-bubble {
     padding: 24px;
-    border-radius: var(--smartie-radius-lg, 18px);
+    border-radius: var(--smartie-chat-bubble-radius, var(--smartie-radius-lg, 18px));
+    max-width: var(--smartie-chat-bubble-width, min(720px, 88%));
     background: var(--smartie-bg-elevated, #181b24);
     color: var(--smartie-fg, #e6e8ee);
     border: 1px solid var(--smartie-border-soft, #2a2f3d);

@@ -65,7 +65,11 @@ public sealed class DocumentRepository : IDocumentRepository
             extracted.Count,
             extracted.Sum(d => (long)d.ExtractedLength),
             lastExtracted?.ExtractedAt,
-            lastExtracted?.ExtractorUsed);
+            lastExtracted?.ExtractorUsed,
+            documents.Count(d => d.IsChunked),
+            documents.Sum(d => d.ChunkCount),
+            documents.Count(d => d.IsEmbedded),
+            documents.Sum(d => d.EmbeddedChunkCount));
     }
 
     public async Task<Document> AddAsync(Document document, CancellationToken cancellationToken = default)

@@ -1,0 +1,315 @@
+@using Microsoft.JSInterop
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+@inject CommandPaletteHost PaletteHost
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_isOpen)
+{
+    <div class="command-palette-backdrop"
+         role="presentation"
+         @onclick="CloseAsync">
+        <div class="command-palette"
+             role="dialog"
+             aria-modal="true"
+             aria-label="Command palette"
+             @onclick:stopPropagation="true"
+             @onkeydown="HandlePaletteKeyDownAsync">
+            <div class="command-palette-search-wrap">
+                <span class="command-palette-search-icon" aria-hidden="true">
+                    <NavIcon Name="search" />
+                </span>
+                <input @ref="_searchInput"
+                       class="command-palette-search"
+                       type="search"
+                       placeholder="Search Smartie..."
+                       @bind="_query"
+                       @bind:event="oninput"
+                       @bind:after="SearchDebouncedAsync"
+                       @onkeydown="HandleSearchKeyDownAsync"
+                       autocomplete="off"
+                       spellcheck="false" />
+                <kbd class="command-palette-hint">Esc</kbd>
+            </div>
+
+            <div class="command-palette-results" role="listbox" aria-label="Commands">
+                @if (_loading && _results.Count == 0)
+                {
+                    <div class="command-palette-empty">Loading commands…</div>
+                }
+                else if (_results.Count == 0)
+                {
+                    <div class="command-palette-empty">No matching commands.</div>
+                }
+                else
+                {
+                    @for (var index = 0; index < _results.Count; index++)
+                    {
+                        var command = _results[index];
+                        var selected = index == _selectedIndex;
+                        <button type="button"
+                                class="command-palette-row @(selected ? "is-selected" : null) @(!command.Enabled ? "is-disabled" : null)"
+                                role="option"
+                                aria-selected="@selected"
+                                disabled="@(!command.Enabled)"
+                                @onclick="() => ExecuteAsync(command)">
+                            <span class="command-palette-row-icon" aria-hidden="true">
+                                <NavIcon Name="@command.Icon" />
+                            </span>
+                            <span class="command-palette-row-body">
+                                <span class="command-palette-row-title">@command.Title</span>
+                                <span class="command-palette-row-subtitle">@command.Subtitle</span>
+                            </span>
+                            @if (!string.IsNullOrEmpty(command.Shortcut))
+                            {
+                                <kbd class="command-palette-row-shortcut">@command.Shortcut</kbd>
+                            }
+                            else if (selected && _developer?.TopRankingScore is not null)
+                            {
+                                <span class="command-palette-row-score">@command.RankingScore.ToString("0.0")</span>
+                            }
+                        </button>
+                    }
+                }
+            </div>
+
+            @if (_developer is not null)
+            {
+                <dl class="command-palette-developer">
+                    <div><dt>Command count</dt><dd>@_developer.CommandCount</dd></div>
+                    <div><dt>Search latency</dt><dd>@_developer.SearchLatencyMs ms</dd></div>
+                    <div><dt>Ranking score</dt><dd>@FormatRankingScore(_developer.TopRankingScore)</dd></div>
+                </dl>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private ElementReference _searchInput;
+    private DotNetObjectReference<CommandPalette>? _dotNetRef;
+    private bool _isOpen;
+    private bool _loading;
+    private string _query = string.Empty;
+    private int _selectedIndex;
+    private List<CommandDto> _results = new();
+    private CommandPaletteDeveloperDto? _developer;
+    private CancellationTokenSource? _searchDebounce;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        PaletteHost.OpenRequested += HandleOpenRequested;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("smartieCommandPalette.register", _dotNetRef);
+            }
+            catch (JSException)
+            {
+                // Keyboard shortcut registration is optional during startup.
+            }
+        }
+
+        if (_isOpen)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("smartieCommandPalette.focusElement", _searchInput);
+            }
+            catch (JSException)
+            {
+                // Focus may fail on some hosts during first paint.
+            }
+        }
+    }
+
+    [JSInvokable]
+    public Task OpenFromShortcut()
+    {
+        return OpenAsync();
+    }
+
+    public Task OpenAsync()
+    {
+        if (_isOpen)
+        {
+            return Task.CompletedTask;
+        }
+
+        _isOpen = true;
+        _query = string.Empty;
+        _selectedIndex = 0;
+        _error = null;
+        StateHasChanged();
+        return SearchAsync();
+    }
+
+    private void HandleOpenRequested()
+    {
+        _ = OpenAsync();
+    }
+
+    private async Task CloseAsync()
+    {
+        if (!_isOpen)
+        {
+            return;
+        }
+
+        _isOpen = false;
+        _searchDebounce?.Cancel();
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task SearchDebouncedAsync()
+    {
+        _searchDebounce?.Cancel();
+        _searchDebounce = new CancellationTokenSource();
+        var token = _searchDebounce.Token;
+
+        try
+        {
+            await Task.Delay(80, token);
+            await SearchAsync(token);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private async Task SearchAsync(CancellationToken cancellationToken = default)
+    {
+        _loading = true;
+        try
+        {
+            var response = await Api.SearchCommandsAsync(
+                string.IsNullOrWhiteSpace(_query) ? null : _query.Trim(),
+                cancellationToken);
+            _results = response.Results.ToList();
+            _developer = response.Developer;
+            _selectedIndex = _results.Count > 0 ? 0 : -1;
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _results = new List<CommandDto>();
+            _developer = null;
+            _selectedIndex = -1;
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleSearchKeyDownAsync(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                MoveSelection(1);
+                break;
+            case "ArrowUp":
+                MoveSelection(-1);
+                break;
+            case "Enter":
+                if (_selectedIndex >= 0 && _selectedIndex < _results.Count)
+                {
+                    await ExecuteAsync(_results[_selectedIndex]);
+                }
+                break;
+            case "Escape":
+                await CloseAsync();
+                break;
+        }
+    }
+
+    private async Task HandlePaletteKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await CloseAsync();
+        }
+    }
+
+    private void MoveSelection(int delta)
+    {
+        if (_results.Count == 0)
+        {
+            return;
+        }
+
+        if (_selectedIndex < 0)
+        {
+            _selectedIndex = 0;
+        }
+        else
+        {
+            _selectedIndex = (_selectedIndex + delta + _results.Count) % _results.Count;
+        }
+    }
+
+    private async Task ExecuteAsync(CommandDto command)
+    {
+        if (!command.Enabled)
+        {
+            return;
+        }
+
+        try
+        {
+            await Api.RecordCommandUsageAsync(command.Id);
+        }
+        catch
+        {
+            // Usage tracking is best-effort.
+        }
+
+        await CloseAsync();
+        Navigation.NavigateTo(NormalizeRoute(command.Route));
+    }
+
+    private static string NormalizeRoute(string route)
+    {
+        if (string.IsNullOrWhiteSpace(route))
+        {
+            return "/";
+        }
+
+        return route.StartsWith('/') ? route : $"/{route}";
+    }
+
+    private static string FormatRankingScore(float? score) =>
+        score is null ? "—" : score.Value.ToString("0.0");
+
+    public async ValueTask DisposeAsync()
+    {
+        PaletteHost.OpenRequested -= HandleOpenRequested;
+        _searchDebounce?.Cancel();
+        _searchDebounce?.Dispose();
+
+        if (_dotNetRef is not null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("smartieCommandPalette.dispose");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+
+            _dotNetRef.Dispose();
+        }
+    }
+}

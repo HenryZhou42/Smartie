@@ -1,0 +1,245 @@
+.automations-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.5rem;
+    max-width: 1100px;
+}
+
+.automations-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.automations-header h1 {
+    margin: 0 0 0.35rem;
+}
+
+.automations-header p {
+    margin: 0;
+    color: var(--smartie-muted, #8b949e);
+}
+
+.automations-summary-list,
+.automations-dev-list,
+.automation-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem 1rem;
+    margin: 0;
+}
+
+.automations-summary-list div,
+.automations-dev-list div,
+.automation-meta div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.automations-summary-list dt,
+.automations-dev-list dt,
+.automation-meta dt {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--smartie-muted, #8b949e);
+}
+
+.automations-summary-list dd,
+.automations-dev-list dd,
+.automation-meta dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.automations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.automation-card.enabled {
+    border-color: color-mix(in srgb, var(--smartie-accent, #7c5cff) 35%, transparent);
+}
+
+.automation-card.disabled {
+    opacity: 0.82;
+}
+
+.automation-card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.automation-card-header h3 {
+    margin: 0;
+}
+
+.automation-badge {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.automation-badge.on {
+    background: color-mix(in srgb, #3fb950 20%, transparent);
+    color: #3fb950;
+}
+
+.automation-badge.off {
+    background: color-mix(in srgb, #8b949e 20%, transparent);
+    color: #8b949e;
+}
+
+.automation-description {
+    margin: 0.75rem 0;
+    color: var(--smartie-muted, #8b949e);
+}
+
+.automation-card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.automation-card-footer .danger {
+    margin-left: auto;
+}
+
+.automations-log-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.automations-log-item {
+    display: grid;
+    gap: 0.15rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--smartie-border, #30363d) 70%, transparent);
+}
+
+.automations-log-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.automations-log-item.failed .automations-log-name {
+    color: #f85149;
+}
+
+.automations-log-item.success .automations-log-name {
+    color: #3fb950;
+}
+
+.automations-log-message {
+    color: var(--smartie-muted, #8b949e);
+    font-size: 0.92rem;
+}
+
+.automations-log-meta {
+    font-size: 0.8rem;
+    color: var(--smartie-muted, #8b949e);
+}
+
+.automations-error,
+.automations-status,
+.automations-loading,
+.automations-empty {
+    padding: 1rem;
+}
+
+.automations-error {
+    color: #f85149;
+}
+
+.automation-dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.automation-dialog {
+    width: min(560px, 100%);
+    max-height: 90vh;
+    overflow: auto;
+    padding: 1.25rem;
+}
+
+.automation-dialog-header h2 {
+    margin: 0 0 0.25rem;
+}
+
+.automation-dialog-header p {
+    margin: 0;
+    color: var(--smartie-muted, #8b949e);
+}
+
+.automation-dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin: 1rem 0;
+}
+
+.automation-dialog-body label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.automation-dialog-body input,
+.automation-dialog-body textarea,
+.automation-dialog-body select {
+    width: 100%;
+}
+
+.automation-builder-step {
+    padding: 0.85rem;
+    border: 1px solid var(--smartie-border, #30363d);
+    border-radius: 0.75rem;
+}
+
+.automation-builder-step h3 {
+    margin: 0 0 0.65rem;
+    font-size: 0.95rem;
+}
+
+.automation-builder-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.automation-optional {
+    font-weight: 400;
+    color: var(--smartie-muted, #8b949e);
+}
+
+.automation-check {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 0.5rem !important;
+}
+
+.automation-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}

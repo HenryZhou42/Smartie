@@ -5,7 +5,18 @@
 <PageTitle>Smartie · Settings</PageTitle>
 
 <div class="settings-page">
-    <header class="settings-header">
+    <nav class="settings-section-nav" aria-label="Settings sections">
+        <a href="#ai">AI</a>
+        <a href="#appearance">Appearance</a>
+        <a href="#tasks">Tasks</a>
+        <a href="#files">Files</a>
+        <a href="#memory">Memory</a>
+        <a href="#knowledge">Knowledge Base</a>
+        <a href="#developer">Developer</a>
+        <a href="/about">About</a>
+    </nav>
+
+    <header class="settings-header" id="ai">
         <p class="edition-badge">Community Edition</p>
         <h1>AI Providers</h1>
         <p>Bring your own AI. Pick a provider, enter your own API key, and chat — all data stays on this device. Keys are encrypted locally and sent only to the provider you choose.</p>
@@ -27,10 +38,10 @@
         }
 
         <div class="provider-grid">
-            @foreach (var p in _settings.Providers)
+            @foreach (var p in _settings.Providers.Where(p => p.Available))
             {
                 var isSelected = string.Equals(p.Provider, _settings.SelectedProvider, StringComparison.OrdinalIgnoreCase);
-                <div class="provider-card @(isSelected ? "active" : string.Empty) @(p.Available ? string.Empty : "unavailable")">
+                <div class="provider-card smartie-card @(isSelected ? "active" : string.Empty)">
                     <div class="provider-card-head">
                         <div class="provider-name">
                             @p.DisplayName
@@ -38,25 +49,19 @@
                             {
                                 <span class="badge badge-active">Active</span>
                             }
-                            @if (!p.Available)
-                            {
-                                <span class="badge badge-soon">Coming soon</span>
-                            }
                         </div>
-                        @if (p.Available && !isSelected)
-                        {
-                            <button class="btn-use" @onclick="() => SelectAsync(p.Provider)">Use this</button>
-                        }
+                    @if (p.Available && !isSelected)
+                    {
+                        <button class="smartie-btn smartie-btn-primary" @onclick="() => SelectAsync(p.Provider)">Use this</button>
+                    }
                     </div>
 
-                    @if (p.Available)
-                    {
-                        <div class="provider-fields">
+                    <div class="provider-fields">
                             @if (p.RequiresApiKey)
                             {
                                 <label>
                                     <span>API key @(p.HasApiKey ? "(stored)" : string.Empty)</span>
-                                    <input type="password" autocomplete="off"
+                                    <input type="password" class="smartie-input" autocomplete="off"
                                            placeholder="@(p.HasApiKey ? "•••••••• leave blank to keep" : "Paste your API key")"
                                            @bind="_apiKey[p.Provider]" />
                                 </label>
@@ -64,33 +69,132 @@
 
                             <label>
                                 <span>Model</span>
-                                <input type="text" placeholder="@p.DefaultChatModel" @bind="_model[p.Provider]" />
+                                <input type="text" class="smartie-input" placeholder="@p.DefaultChatModel" @bind="_model[p.Provider]" />
                             </label>
 
                             @if (p.RequiresEndpoint)
                             {
                                 <label>
                                     <span>Endpoint</span>
-                                    <input type="text" placeholder="@p.DefaultEndpoint" @bind="_endpoint[p.Provider]" />
+                                    <input type="text" class="smartie-input" placeholder="@p.DefaultEndpoint" @bind="_endpoint[p.Provider]" />
                                 </label>
                             }
 
-                            <button class="btn-save" disabled="@_saving" @onclick="() => SaveAsync(p.Provider)">Save</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="provider-note">Smartie Cloud — coming soon. Not part of Community Edition.</div>
-                    }
+                            <button class="smartie-btn smartie-btn-primary" disabled="@_saving" @onclick="() => SaveAsync(p.Provider)">Save</button>
+                    </div>
                 </div>
             }
         </div>
     }
 
-    <section class="settings-knowledge">
+    <AppearanceSettingsSection StatusChanged="OnAppearanceStatusAsync" />
+
+    <section class="settings-knowledge" id="tasks">
+        <header class="settings-header">
+            <h1>Tasks</h1>
+            <p>Lightweight personal task defaults stored locally in SQLite.</p>
+        </header>
+
+        @if (_taskSettings is null)
+        {
+            <div class="settings-loading">@(_taskSettingsError ?? "Loading…")</div>
+        }
+        else
+        {
+            <div class="provider-card knowledge-settings-card smartie-card">
+                <dl class="knowledge-settings-list">
+                    <div><dt>Default sort</dt><dd>@FormatTaskSort(_taskSettings.DefaultSort)</dd></div>
+                    <div><dt>Default priority</dt><dd>@_taskSettings.DefaultPriority</dd></div>
+                    <div><dt>Show completed</dt><dd>@(_taskSettings.ShowCompleted ? "Yes" : "No")</dd></div>
+                </dl>
+                <div class="memory-settings-actions">
+                    <select class="settings-inline-select" @bind="_taskSortDraft" @bind:after="SaveTaskSettingsAsync">
+                        @foreach (var option in TaskSortOptions)
+                        {
+                            <option value="@option">@FormatTaskSort(option)</option>
+                        }
+                    </select>
+                    <select class="settings-inline-select" @bind="_taskPriorityDraft" @bind:after="SaveTaskSettingsAsync">
+                        @foreach (var option in TaskPriorityOptions)
+                        {
+                            <option value="@option">@option</option>
+                        }
+                    </select>
+                    <label class="settings-inline-check smartie-check">
+                        <input type="checkbox" @bind="_taskShowCompletedDraft" @bind:after="SaveTaskSettingsAsync" />
+                        Show completed
+                    </label>
+                    <button type="button" class="smartie-btn smartie-btn-secondary" @onclick="OpenTasks">Open Tasks</button>
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="settings-knowledge" id="files">
+        <header class="settings-header">
+            <h1>Desktop Files</h1>
+            <p>Recent files and favorite folders for local desktop convenience — no background indexing.</p>
+        </header>
+
+        @if (_fileSettings is null)
+        {
+            <div class="settings-loading">@(_fileSettingsError ?? "Loading…")</div>
+        }
+        else
+        {
+            <div class="provider-card knowledge-settings-card smartie-card">
+                <dl class="knowledge-settings-list">
+                    <div><dt>Max recent files</dt><dd>@_fileSettings.MaxRecentFiles</dd></div>
+                    <div><dt>Show hidden files</dt><dd>@(_fileSettings.ShowHiddenFiles ? "Yes" : "No")</dd></div>
+                </dl>
+                <div class="memory-settings-actions">
+                    <select class="settings-inline-select" @bind="_fileMaxRecentDraft" @bind:after="SaveFileSettingsAsync">
+                        @foreach (var option in FileMaxRecentOptions)
+                        {
+                            <option value="@option">@option recent files</option>
+                        }
+                    </select>
+                    <label class="settings-inline-check smartie-check">
+                        <input type="checkbox" @bind="_fileShowHiddenDraft" @bind:after="SaveFileSettingsAsync" />
+                        Show hidden files in search
+                    </label>
+                    <button type="button" class="smartie-btn smartie-btn-secondary" @onclick="OpenFiles">Open Files</button>
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="settings-knowledge" id="memory">
+        <header class="settings-header">
+            <h1>Smart Memory</h1>
+            <p>Persistent personal facts stored locally in SQLite and injected into chat prompts.</p>
+        </header>
+
+        @if (_memorySettings is null)
+        {
+            <div class="settings-loading">@(_memorySettingsError ?? "Loading…")</div>
+        }
+        else
+        {
+            <div class="provider-card knowledge-settings-card smartie-card">
+                <dl class="knowledge-settings-list">
+                    <div><dt>Status</dt><dd>@(_memorySettings.Enabled ? "Enabled" : "Disabled")</dd></div>
+                    <div><dt>Stored memories</dt><dd>@_memorySettings.CurrentCount / @_memorySettings.MaxMemories</dd></div>
+                    <div><dt>Retention</dt><dd>@_memorySettings.RetentionDays days</dd></div>
+                </dl>
+                <div class="memory-settings-actions">
+                    <button type="button" class="smartie-btn smartie-btn-primary" disabled="@_savingMemory" @onclick="() => SetMemoryEnabledAsync(true)">Enable Memory</button>
+                    <button type="button" class="smartie-btn smartie-btn-secondary" disabled="@_savingMemory" @onclick="() => SetMemoryEnabledAsync(false)">Disable Memory</button>
+                    <button type="button" class="smartie-btn smartie-btn-secondary" @onclick="OpenMemory">Open Memory</button>
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="settings-knowledge" id="knowledge">
         <header class="settings-header">
             <h1>Knowledge Base</h1>
-            <p>Community Edition stores documents locally on this device. No cloud sync, no embeddings yet.</p>
+            <p>Community Edition stores documents locally on this device. Embeddings use your Google Gemini API key.</p>
         </header>
 
         @if (_knowledgeSettings is null)
@@ -99,24 +203,35 @@
         }
         else
         {
-            <div class="provider-card knowledge-settings-card">
+            <div class="provider-card knowledge-settings-card smartie-card">
                 <dl class="knowledge-settings-list">
                     <div><dt>Storage folder</dt><dd>@_knowledgeSettings.StorageFolder</dd></div>
                     <div><dt>Max file size</dt><dd>@FormatFileSize(_knowledgeSettings.MaxFileSizeBytes)</dd></div>
-                    <div><dt>Default collection</dt><dd>Coming Soon</dd></div>
                     <div><dt>Supported types</dt><dd>@string.Join(", ", _knowledgeSettings.SupportedExtensions)</dd></div>
                 </dl>
-                <p class="knowledge-settings-note">Chunk size, embedding provider, and semantic search are planned for a future milestone.</p>
-                <button type="button" class="btn-save" @onclick="OpenKnowledgeBase">Open Knowledge Base</button>
+                <button type="button" class="smartie-btn smartie-btn-secondary" @onclick="OpenKnowledgeBase">Open Knowledge Base</button>
             </div>
         }
     </section>
 
-    <section class="settings-knowledge settings-developer">
+    <section class="settings-knowledge" id="developer">
         <header class="settings-header">
             <h1>Developer</h1>
-            <p>Document text extraction diagnostics for the local Knowledge Base pipeline.</p>
+            <p>Local diagnostics — no telemetry, no cloud.</p>
         </header>
+
+        <SmartieDevPanel Title="Diagnostics">
+        @if (_performance is not null)
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Performance</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="Startup time" Value="@($"{_performance.StartupTimeMs} ms")" />
+                    <SmartieStatCard Label="Search latency" Value="@($"{_performance.LastSearchLatencyMs} ms")" />
+                    <SmartieStatCard Label="RAG latency" Value="@($"{_performance.LastRagLatencyMs} ms")" />
+                </dl>
+            </article>
+        }
 
         @if (_extractionDeveloper is null)
         {
@@ -124,16 +239,163 @@
         }
         else
         {
-            <div class="provider-card knowledge-settings-card">
-                <dl class="knowledge-settings-list">
-                    <div><dt>Characters extracted</dt><dd>@_extractionDeveloper.TotalExtractedCharacters.ToString("N0")</dd></div>
-                    <div><dt>Documents extracted</dt><dd>@_extractionDeveloper.ExtractedCount</dd></div>
-                    <div><dt>Last extraction</dt><dd>@FormatExtractionTime(_extractionDeveloper.LastExtractedAt)</dd></div>
-                    <div><dt>Extraction time</dt><dd>@FormatExtractionDuration(_extractionDeveloper.LastExtractionDurationMs)</dd></div>
-                    <div><dt>Extractor used</dt><dd>@(_extractionDeveloper.LastExtractorUsed ?? "—")</dd></div>
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Document extraction</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="Characters extracted" Value="@_extractionDeveloper.TotalExtractedCharacters.ToString("N0")" />
+                    <SmartieStatCard Label="Documents extracted" Value="@_extractionDeveloper.ExtractedCount.ToString()" />
+                    <SmartieStatCard Label="Extraction time" Value="@FormatExtractionDuration(_extractionDeveloper.LastExtractionDurationMs)" />
                 </dl>
-            </div>
+                <p class="smartie-caption">Last extraction: @FormatExtractionTime(_extractionDeveloper.LastExtractedAt) · @(_extractionDeveloper.LastExtractorUsed ?? "—")</p>
+            </article>
         }
+        @if (_chunkingDeveloper is null)
+        {
+            <div class="settings-loading">@(_chunkingDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Chunking</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="Chunk count" Value="@_chunkingDeveloper.TotalChunkCount.ToString("N0")" />
+                    <SmartieStatCard Label="Documents chunked" Value="@_chunkingDeveloper.ChunkedCount.ToString()" />
+                    <SmartieStatCard Label="Avg chunk length" Value="@($"{_chunkingDeveloper.AverageChunkLength:0} chars")" />
+                </dl>
+                <p class="smartie-caption">Target @_chunkingDeveloper.TargetChunkSize.ToString("N0") chars · overlap @_chunkingDeveloper.ChunkOverlap.ToString("N0")</p>
+            </article>
+        }
+        @if (_embeddingDeveloper is null)
+        {
+            <div class="settings-loading">@(_embeddingDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Embeddings</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="Generated" Value="@_embeddingDeveloper.GeneratedCount.ToString("N0")" />
+                    <SmartieStatCard Label="Failed" Value="@_embeddingDeveloper.FailedCount.ToString("N0")" />
+                    <SmartieStatCard Label="Dimensions" Value="@FormatVectorDimension(_embeddingDeveloper.VectorDimension)" />
+                </dl>
+                <p class="smartie-caption">@_embeddingDeveloper.EmbeddingProvider · @_embeddingDeveloper.EmbeddingModel</p>
+            </article>
+        }
+        @if (_searchDeveloper is null)
+        {
+            <div class="settings-loading">@(_searchDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Semantic search</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="Default Top K" Value="@_searchDeveloper.DefaultTopK.ToString()" />
+                    <SmartieStatCard Label="Min similarity" Value="@($"{_searchDeveloper.MinSimilarityScorePercent}%")" />
+                    <SmartieStatCard Label="Embedded chunks" Value="@_searchDeveloper.EmbeddedChunkCount.ToString("N0")" />
+                </dl>
+                <p class="smartie-caption">Top K options: @string.Join(", ", _searchDeveloper.AllowedTopKValues) · @FormatVectorDimension(_searchDeveloper.EmbeddingDimensions) dims</p>
+            </article>
+        }
+        @if (_taskDeveloper is null)
+        {
+            <div class="settings-loading">@(_taskDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Tasks</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="Task count" Value="@_taskDeveloper.TaskCount.ToString()" />
+                    <SmartieStatCard Label="Completed" Value="@_taskDeveloper.CompletedCount.ToString()" />
+                    <SmartieStatCard Label="Database size" Value="@FormatDatabaseSize(_taskDeveloper.DatabaseSizeBytes)" />
+                </dl>
+            </article>
+        }
+        @if (_memoryDeveloper is null)
+        {
+            <div class="settings-loading">@(_memoryDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Memory</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="Memory count" Value="@_memoryDeveloper.MemoryCount.ToString()" />
+                    <SmartieStatCard Label="Pinned" Value="@_memoryDeveloper.PinnedCount.ToString()" />
+                    <SmartieStatCard Label="Search Top K" Value="@_memoryDeveloper.DefaultSearchTopK.ToString()" />
+                </dl>
+                <p class="smartie-caption">@FormatVectorDimension(_memoryDeveloper.EmbeddingDimensions) dims · min similarity @_memoryDeveloper.MinSimilarityScorePercent%</p>
+            </article>
+        }
+        @if (_fileDeveloper is null)
+        {
+            <div class="settings-loading">@(_fileDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Files</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="File count" Value="@_fileDeveloper.FileCount.ToString()" />
+                    <SmartieStatCard Label="Search time" Value="@($"{_fileDeveloper.SearchTimeMs} ms")" />
+                    <SmartieStatCard Label="Indexed files" Value="@_fileDeveloper.IndexedFiles.ToString()" />
+                    <SmartieStatCard Label="Favorite folders" Value="@_fileDeveloper.FavoriteFolderCount.ToString()" />
+                </dl>
+            </article>
+        }
+        @if (_appearanceDeveloper is null)
+        {
+            <div class="settings-loading">@(_appearanceDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Appearance variables</h3>
+                <dl class="smartie-stat-grid appearance-dev-list">
+                    @foreach (var variable in _appearanceDeveloper.ActiveVariables)
+                    {
+                        <SmartieStatCard Label="@variable.Name" Value="@variable.Value" />
+                    }
+                </dl>
+            </article>
+        }
+        @if (_pluginDeveloper is null)
+        {
+            <div class="settings-loading">@(_pluginDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Plugins</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="Plugin count" Value="@_pluginDeveloper.PluginCount.ToString()" />
+                    <SmartieStatCard Label="Load time" Value="@($"{_pluginDeveloper.TotalLoadTimeMs} ms")" />
+                </dl>
+                <p class="smartie-caption">Loaded: @string.Join(", ", _pluginDeveloper.LoadedPlugins)</p>
+                @if (_pluginDeveloper.FailedPlugins.Count > 0)
+                {
+                    <p class="smartie-caption">Failed: @string.Join(", ", _pluginDeveloper.FailedPlugins)</p>
+                }
+            </article>
+        }
+        @if (_automationDeveloper is null)
+        {
+            <div class="settings-loading">@(_automationDeveloperError ?? "Loading…")</div>
+        }
+        else
+        {
+            <article class="dashboard-card smartie-card">
+                <h3 class="smartie-card-title">Automations</h3>
+                <dl class="smartie-stat-grid">
+                    <SmartieStatCard Label="Execution time" Value="@($"{_automationDeveloper.TotalExecutionTimeMs} ms")" />
+                    <SmartieStatCard Label="Failures" Value="@_automationDeveloper.FailureCount.ToString()" />
+                    <SmartieStatCard Label="Success rate" Value="@($"{_automationDeveloper.SuccessRatePercent:0}%")" />
+                    <SmartieStatCard Label="Recent logs" Value="@_automationDeveloper.RecentLogs.Count.ToString()" />
+                </dl>
+            </article>
+        }
+        </SmartieDevPanel>
     </section>
 </div>
 
@@ -141,11 +403,46 @@
     private AiSettingsDto? _settings;
     private KnowledgeBaseSettingsDto? _knowledgeSettings;
     private DocumentExtractionDeveloperDto? _extractionDeveloper;
+    private DocumentChunkingDeveloperDto? _chunkingDeveloper;
+    private DocumentEmbeddingDeveloperDto? _embeddingDeveloper;
+    private SemanticSearchSettingsDeveloperDto? _searchDeveloper;
+    private MemorySettingsDto? _memorySettings;
+    private MemoryDeveloperDto? _memoryDeveloper;
+    private TaskSettingsDto? _taskSettings;
+    private TaskDeveloperDto? _taskDeveloper;
+    private FileIntegrationSettingsDto? _fileSettings;
+    private FileIntegrationDeveloperDto? _fileDeveloper;
+    private AppearanceDeveloperDto? _appearanceDeveloper;
+    private PluginDeveloperDto? _pluginDeveloper;
+    private AutomationDeveloperDto? _automationDeveloper;
+    private PerformanceMetricsDto? _performance;
+    private string? _taskSettingsError;
+    private string? _taskDeveloperError;
+    private string? _fileSettingsError;
+    private string? _fileDeveloperError;
+    private string? _appearanceDeveloperError;
+    private string? _pluginDeveloperError;
+    private string? _automationDeveloperError;
+    private string _taskSortDraft = "DueDate";
+    private string _taskPriorityDraft = "Medium";
+    private bool _taskShowCompletedDraft = true;
+    private int _fileMaxRecentDraft = 50;
+    private bool _fileShowHiddenDraft;
     private string? _extractionDeveloperError;
+    private string? _chunkingDeveloperError;
+    private string? _embeddingDeveloperError;
+    private string? _searchDeveloperError;
+    private string? _memorySettingsError;
+    private string? _memoryDeveloperError;
     private string? _knowledgeError;
     private string? _error;
     private string? _status;
     private bool _saving;
+    private bool _savingMemory;
+
+    private static readonly string[] TaskSortOptions = ["DueDate", "Priority", "UpdatedAt", "CreatedAt", "Title"];
+    private static readonly string[] TaskPriorityOptions = ["Low", "Medium", "High", "Critical"];
+    private static readonly int[] FileMaxRecentOptions = [25, 50, 100, 200];
 
     private readonly Dictionary<string, string?> _apiKey = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string?> _model = new(StringComparer.OrdinalIgnoreCase);
@@ -156,6 +453,261 @@
         await LoadAsync();
         await LoadKnowledgeSettingsAsync();
         await LoadExtractionDeveloperAsync();
+        await LoadChunkingDeveloperAsync();
+        await LoadEmbeddingDeveloperAsync();
+        await LoadSearchDeveloperAsync();
+        await LoadMemorySettingsAsync();
+        await LoadMemoryDeveloperAsync();
+        await LoadTaskSettingsAsync();
+        await LoadTaskDeveloperAsync();
+        await LoadFileSettingsAsync();
+        await LoadFileDeveloperAsync();
+        await LoadAppearanceDeveloperAsync();
+        await LoadPluginDeveloperAsync();
+        await LoadAutomationDeveloperAsync();
+        _performance = await Api.GetPerformanceMetricsAsync();
+    }
+
+    private Task OnAppearanceStatusAsync(string status)
+    {
+        _status = status;
+        return Task.CompletedTask;
+    }
+
+    private async Task LoadAppearanceDeveloperAsync()
+    {
+        try
+        {
+            _appearanceDeveloper = await Api.GetAppearanceDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _appearanceDeveloperError = ex.Message;
+        }
+    }
+
+    private async Task LoadPluginDeveloperAsync()
+    {
+        try
+        {
+            _pluginDeveloper = await Api.GetPluginDeveloperAsync();
+            _pluginDeveloperError = null;
+        }
+        catch (Exception ex)
+        {
+            _pluginDeveloperError = ex.Message;
+        }
+    }
+
+    private async Task LoadAutomationDeveloperAsync()
+    {
+        try
+        {
+            _automationDeveloper = await Api.GetAutomationDeveloperAsync();
+            _automationDeveloperError = null;
+        }
+        catch (Exception ex)
+        {
+            _automationDeveloperError = ex.Message;
+        }
+    }
+
+    private async Task LoadTaskSettingsAsync()
+    {
+        try
+        {
+            _taskSettings = await Api.GetTaskSettingsAsync();
+            _taskSortDraft = _taskSettings.DefaultSort;
+            _taskPriorityDraft = _taskSettings.DefaultPriority;
+            _taskShowCompletedDraft = _taskSettings.ShowCompleted;
+            _taskSettingsError = null;
+        }
+        catch (Exception ex)
+        {
+            _taskSettingsError = ex.Message;
+        }
+    }
+
+    private async Task LoadTaskDeveloperAsync()
+    {
+        try
+        {
+            _taskDeveloper = await Api.GetTaskDeveloperAsync();
+            _taskDeveloperError = null;
+        }
+        catch (Exception ex)
+        {
+            _taskDeveloperError = ex.Message;
+        }
+    }
+
+    private async Task SaveTaskSettingsAsync()
+    {
+        try
+        {
+            _taskSettings = await Api.UpdateTaskSettingsAsync(new UpdateTaskSettingsRequest(
+                _taskSortDraft,
+                _taskPriorityDraft,
+                _taskShowCompletedDraft));
+            _status = "Task settings saved.";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void OpenTasks() => Navigation.NavigateTo("/tasks");
+
+    private void OpenFiles() => Navigation.NavigateTo("/files");
+
+    private async Task LoadFileSettingsAsync()
+    {
+        try
+        {
+            _fileSettings = await Api.GetFileIntegrationSettingsAsync();
+            _fileMaxRecentDraft = _fileSettings.MaxRecentFiles;
+            _fileShowHiddenDraft = _fileSettings.ShowHiddenFiles;
+        }
+        catch (Exception ex)
+        {
+            _fileSettingsError = ex.Message;
+        }
+    }
+
+    private async Task LoadFileDeveloperAsync()
+    {
+        try
+        {
+            _fileDeveloper = await Api.GetFileIntegrationDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _fileDeveloperError = ex.Message;
+        }
+    }
+
+    private async Task SaveFileSettingsAsync()
+    {
+        try
+        {
+            _fileSettings = await Api.UpdateFileIntegrationSettingsAsync(new UpdateFileIntegrationSettingsRequest(
+                _fileMaxRecentDraft,
+                _fileShowHiddenDraft));
+            _status = "File settings saved.";
+        }
+        catch (Exception ex)
+        {
+            _status = ex.Message;
+        }
+    }
+
+    private static string FormatTaskSort(string sort) => sort switch
+    {
+        "DueDate" => "Due Date",
+        "CreatedAt" => "Created Date",
+        "UpdatedAt" => "Updated Date",
+        _ => sort
+    };
+
+    private static string FormatDatabaseSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+
+    private async Task LoadMemorySettingsAsync()
+    {
+        try
+        {
+            _memorySettings = await Api.GetMemorySettingsAsync();
+            _memorySettingsError = null;
+        }
+        catch (Exception ex)
+        {
+            _memorySettingsError = ex.Message;
+        }
+    }
+
+    private async Task LoadMemoryDeveloperAsync()
+    {
+        try
+        {
+            _memoryDeveloper = await Api.GetMemoryDeveloperAsync();
+            _memoryDeveloperError = null;
+        }
+        catch (Exception ex)
+        {
+            _memoryDeveloperError = ex.Message;
+        }
+    }
+
+    private async Task SetMemoryEnabledAsync(bool enabled)
+    {
+        _savingMemory = true;
+        try
+        {
+            _memorySettings = await Api.UpdateMemorySettingsAsync(new UpdateMemorySettingsRequest(enabled, null, null));
+            _status = enabled ? "Memory enabled." : "Memory disabled.";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _savingMemory = false;
+        }
+    }
+
+    private void OpenMemory() => Navigation.NavigateTo("/memory");
+
+    private async Task LoadSearchDeveloperAsync()
+    {
+        try
+        {
+            _searchDeveloper = await Api.GetSemanticSearchDeveloperAsync();
+            _searchDeveloperError = null;
+        }
+        catch (Exception ex)
+        {
+            _searchDeveloperError = ex.Message;
+        }
+    }
+
+    private async Task LoadEmbeddingDeveloperAsync()
+    {
+        try
+        {
+            _embeddingDeveloper = await Api.GetDocumentEmbeddingDeveloperAsync();
+            _embeddingDeveloperError = null;
+        }
+        catch (Exception ex)
+        {
+            _embeddingDeveloperError = ex.Message;
+        }
+    }
+
+    private async Task LoadChunkingDeveloperAsync()
+    {
+        try
+        {
+            _chunkingDeveloper = await Api.GetDocumentChunkingDeveloperAsync();
+            _chunkingDeveloperError = null;
+        }
+        catch (Exception ex)
+        {
+            _chunkingDeveloperError = ex.Message;
+        }
     }
 
     private async Task LoadExtractionDeveloperAsync()
@@ -196,6 +748,9 @@
 
     private static string FormatExtractionDuration(long? ms) =>
         ms is null or <= 0 ? "—" : $"{ms.Value} ms";
+
+    private static string FormatVectorDimension(int? dimension) =>
+        dimension is int value ? value.ToString("N0") : "—";
 
     private async Task LoadAsync()
     {

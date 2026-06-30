@@ -1,13 +1,16 @@
 @inherits LayoutComponentBase
 @inject SmartieApiClient Api
+@inject CommandPaletteHost CommandPalette
+@inject ThemeApplicator Theme
+@implements IDisposable
 
-<div class="smartie-shell">
+<div class="smartie-shell @(_sidebarClass)">
     <nav class="smartie-sidebar smartie-panel">
         <div class="smartie-brand">
             <span class="smartie-brand-mark" title="Smartie">S</span>
             <div class="smartie-brand-text">
                 <span class="smartie-brand-name">Smartie</span>
-                <span class="smartie-brand-edition">Community Edition</span>
+                <span class="smartie-brand-edition">@SmartieAppInfo.Edition</span>
                 <span class="smartie-brand-tagline">AI Productivity OS</span>
             </div>
         </div>
@@ -22,6 +25,10 @@
                                  Match="@GetNavMatch(item)">
                             <span class="smartie-nav-icon"><NavIcon Name="@item.Icon" /></span>
                             <span class="smartie-nav-label">@item.Label</span>
+                            @if (item.BadgeCount is int count)
+                            {
+                                <span class="smartie-nav-badge">@count</span>
+                            }
                         </NavLink>
                     </li>
                 }
@@ -47,8 +54,8 @@
                 }
             </div>
             <div class="smartie-footer-links">
-                <NavLink class="smartie-footer-link" href="about">About</NavLink>
-                <span class="smartie-footer-link muted" title="Coming soon">Cloud</span>
+                <NavLink class="smartie-footer-link" href="/about">About</NavLink>
+                <button type="button" class="smartie-footer-link smartie-footer-kbd" title="Open command palette" @onclick="OpenCommandPalette">Ctrl+K</button>
             </div>
         </div>
     </nav>
@@ -58,26 +65,62 @@
     </main>
 </div>
 
+<CommandPalette />
+<OnboardingWelcome @ref="_onboarding" />
+
 @code {
+    private OnboardingWelcome? _onboarding;
     private const string AppVersion = SmartieAppInfo.Version;
 
     private string? _providerLabel;
+    private int? _pendingTaskCount;
+    private string _sidebarClass = string.Empty;
 
-    private record NavItem(string Label, string Icon, string Href, bool Enabled);
+    private record NavItem(string Label, string Icon, string Href, bool Enabled, int? BadgeCount = null);
 
-    private static readonly NavItem[] NavItems =
+    private NavItem[] _navItems =
+    [
+        new("Dashboard", "dashboard", "/", true),
+        new("Chat", "chat", "/chat", true),
+        new("Knowledge Base", "knowledge", "/knowledge", true),
+        new("Memory", "memory", "/memory", true),
+        new("Tasks", "tasks", "/tasks", true),
+        new("Files", "files", "/files", true),
+        new("Plugins", "plugins", "/plugins", true),
+        new("Automations", "automations", "/automations", true),
+        new("Settings", "settings", "/settings", true),
+    ];
+
+    private IEnumerable<NavItem> NavItems => _navItems;
+
+    protected override void OnInitialized()
     {
-        new("Dashboard", "dashboard", "", true),
-        new("Chat", "chat", "chat", true),
-        new("Knowledge Base", "knowledge", "knowledge", true),
-        new("Tasks", "tasks", "tasks", false),
-        new("Files", "files", "files", false),
-        new("Automations", "automations", "automations", false),
-        new("Settings", "settings", "settings", true),
-    };
+        Theme.Changed += OnThemeChanged;
+        _ = LoadShellDataAsync();
+    }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender && _onboarding is not null)
+        {
+            await _onboarding.TryShowAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadShellDataAsync()
+    {
+        try
+        {
+            var appearance = await Api.GetAppearanceSettingsAsync();
+            await Theme.ApplyAsync(appearance);
+            UpdateSidebarClass(appearance.SidebarMode);
+        }
+        catch
+        {
+            // Appearance is optional during startup.
+        }
+
         try
         {
             var settings = await Api.GetAiSettingsAsync();
@@ -92,6 +135,23 @@
         {
             // API may be offline during startup.
         }
+
+        try
+        {
+            var stats = await Api.GetTaskStatsAsync();
+            _pendingTaskCount = stats.PendingCount;
+            _navItems = _navItems
+                .Select(item => item.Icon == "tasks"
+                    ? item with { BadgeCount = stats.PendingCount > 0 ? stats.PendingCount : null }
+                    : item)
+                .ToArray();
+        }
+        catch
+        {
+            // Task stats optional during startup.
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private static NavLinkMatch GetNavMatch(NavItem item) =>
@@ -101,4 +161,28 @@
             "chat" => NavLinkMatch.Prefix,
             _ => NavLinkMatch.Prefix
         };
+
+    private void OpenCommandPalette() => CommandPalette.RequestOpen();
+
+    private void OnThemeChanged()
+    {
+        if (Theme.Current is { } current)
+        {
+            UpdateSidebarClass(current.SidebarMode);
+        }
+
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateSidebarClass(string sidebarMode)
+    {
+        _sidebarClass = sidebarMode.ToLowerInvariant() switch
+        {
+            "compact" => "smartie-sidebar-compact",
+            "iconsonly" => "smartie-sidebar-icons-only",
+            _ => string.Empty
+        };
+    }
+
+    public void Dispose() => Theme.Changed -= OnThemeChanged;
 }

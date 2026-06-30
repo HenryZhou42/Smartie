@@ -1,0 +1,13 @@
+.task-detail-dialog {
+    width: 560px;
+}
+
+.task-detail-header h2 {
+    margin: 0;
+}
+
+@media (max-width: 640px) {
+    .task-detail-row {
+        grid-template-columns: 1fr;
+    }
+}

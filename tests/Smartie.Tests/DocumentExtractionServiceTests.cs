@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Smartie.Application.Abstractions;
 using Smartie.Application.Services;
 using Smartie.Domain.Entities;
 using Smartie.Infrastructure.Documents;
@@ -57,6 +58,7 @@ public class DocumentExtractionServiceTests
                     new MarkdownDocumentTextExtractor(storage),
                     new PdfDocumentTextExtractor(storage),
                     new DocxDocumentTextExtractor(storage)),
+                new NoOpDocumentChunkingService(repository),
                 NullLogger<DocumentExtractionService>.Instance);
 
             var result = await service.ExtractAndPersistAsync(documentId, userId);
@@ -116,6 +118,7 @@ public class DocumentExtractionServiceTests
                     new MarkdownDocumentTextExtractor(storage),
                     new PdfDocumentTextExtractor(storage),
                     new DocxDocumentTextExtractor(storage)),
+                new NoOpDocumentChunkingService(repository),
                 NullLogger<DocumentExtractionService>.Instance);
 
             var result = await service.ExtractAndPersistAsync(documentId, userId);
@@ -179,6 +182,49 @@ internal sealed class ExtractionTestDocumentRepository : Smartie.Application.Abs
             ExtractionStatus = source.ExtractionStatus,
             ExtractorUsed = source.ExtractorUsed,
             ExtractionDurationMs = source.ExtractionDurationMs,
-            ExtractionError = source.ExtractionError
+            ExtractionError = source.ExtractionError,
+            IsChunked = source.IsChunked,
+            ChunkCount = source.ChunkCount,
+            ChunkedAt = source.ChunkedAt
         };
+}
+
+internal sealed class NoOpDocumentChunkingService : Smartie.Application.Abstractions.IDocumentChunkingService
+{
+    private readonly ExtractionTestDocumentRepository _repository;
+
+    public NoOpDocumentChunkingService(ExtractionTestDocumentRepository repository) =>
+        _repository = repository;
+
+    public async Task<Document> ChunkAndPersistAsync(
+        Guid documentId,
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        (await _repository.FindForUpdateAsync(documentId, userId, cancellationToken).ConfigureAwait(false))!;
+
+    public Task<Document> RebuildChunksAsync(
+        Guid documentId,
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        ChunkAndPersistAsync(documentId, userId, cancellationToken);
+}
+
+internal sealed class NoOpDocumentEmbeddingService : IDocumentEmbeddingService
+{
+    private readonly ExtractionTestDocumentRepository _repository;
+
+    public NoOpDocumentEmbeddingService(ExtractionTestDocumentRepository repository) =>
+        _repository = repository;
+
+    public async Task<Document> GenerateAndPersistAsync(
+        Guid documentId,
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        (await _repository.FindForUpdateAsync(documentId, userId, cancellationToken).ConfigureAwait(false))!;
+
+    public Task<Document> RebuildEmbeddingsAsync(
+        Guid documentId,
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        GenerateAndPersistAsync(documentId, userId, cancellationToken);
 }

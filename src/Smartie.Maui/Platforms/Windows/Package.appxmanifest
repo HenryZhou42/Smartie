@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
@@ -6,14 +6,18 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap rescap">
 
-  <Identity Name="maui-package-name-placeholder" Publisher="CN=User Name" Version="0.0.0.0" />
+  <Identity
+    Name="Smartie.Community"
+    Publisher="CN=Henry Zhou"
+    Version="0.9.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="BC806198-798B-4E3B-A7CC-429F24A1D403" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>$placeholder$</DisplayName>
-    <PublisherDisplayName>User Name</PublisherDisplayName>
-    <Logo>$placeholder$.png</Logo>
+    <DisplayName>Smartie</DisplayName>
+    <PublisherDisplayName>Henry Zhou</PublisherDisplayName>
+    <Logo>appiconStoreLogo.png</Logo>
+    <Description>AI Productivity OS</Description>
   </Properties>
 
   <Dependencies>
@@ -28,13 +32,17 @@
   <Applications>
     <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="$placeholder$"
-        Description="$placeholder$"
-        Square150x150Logo="$placeholder$.png"
-        Square44x44Logo="$placeholder$.png"
-        BackgroundColor="transparent">
-        <uap:DefaultTile Square71x71Logo="$placeholder$.png" Wide310x150Logo="$placeholder$.png" Square310x310Logo="$placeholder$.png" />
-        <uap:SplashScreen Image="$placeholder$.png" />
+        DisplayName="Smartie"
+        Description="AI Productivity OS — local-first Community Edition"
+        Square150x150Logo="appiconMediumTile.png"
+        Square44x44Logo="appiconLogo.png"
+        BackgroundColor="#12141B">
+        <uap:DefaultTile
+          Square71x71Logo="appiconSmallTile.png"
+          Wide310x150Logo="appiconWideTile.png"
+          Square310x310Logo="appiconLargeTile.png"
+          ShortName="Smartie" />
+        <uap:SplashScreen Image="appiconSplashScreen.png" BackgroundColor="#12141B" />
       </uap:VisualElements>
     </Application>
   </Applications>

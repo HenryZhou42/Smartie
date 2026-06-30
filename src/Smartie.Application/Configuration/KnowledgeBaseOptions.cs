@@ -6,5 +6,5 @@ public sealed class KnowledgeBaseOptions
 
     public long MaxFileSizeBytes { get; set; } = 52_428_800;
 
-    public string[] AllowedExtensions { get; set; } = [".pdf", ".docx", ".txt", ".md", ".markdown"];
+    public string[] AllowedExtensions { get; set; } = [".pdf", ".docx", ".txt", ".md", ".markdown", ".png", ".jpg", ".jpeg", ".csv"];
 }

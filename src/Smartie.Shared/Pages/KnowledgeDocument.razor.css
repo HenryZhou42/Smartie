@@ -162,6 +162,53 @@
     margin-top: 8px;
 }
 
+.document-chunks-card {
+    margin-bottom: 16px;
+}
+
+.document-chunk-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 10px;
+}
+
+.document-chunk-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: start;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.document-chunk-index {
+    color: #b29dff;
+    font-weight: 700;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+}
+
+.document-chunk-preview {
+    color: #e6e8ee;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.document-chunk-meta {
+    color: #8b93a7;
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+.document-chunk-actions {
+    margin-top: 14px;
+}
+
 @media (max-width: 640px) {
     .document-detail-list div {
         grid-template-columns: 1fr;

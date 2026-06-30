@@ -1,0 +1,168 @@
+@if (IsVisible && Task is not null)
+{
+    <div class="smartie-dialog-backdrop task-detail-backdrop"
+         role="presentation"
+         @onclick="HandleCancelAsync">
+        <div class="smartie-dialog task-detail-dialog"
+             role="dialog"
+             aria-modal="true"
+             aria-label="Task details"
+             @onclick:stopPropagation="true"
+             @onkeydown="HandleKeyDownAsync">
+            <header class="smartie-dialog-header task-detail-header">
+                <h2 class="smartie-card-title">Task Details</h2>
+                <button type="button" class="smartie-btn smartie-btn-ghost task-detail-close" aria-label="Close" @onclick="HandleCancelAsync">×</button>
+            </header>
+
+            <div class="smartie-dialog-body task-detail-body">
+                <label class="task-detail-field">
+                    <span>Title</span>
+                    <input type="text" class="smartie-input" @bind="_title" />
+                </label>
+
+                <label class="task-detail-field">
+                    <span>Description</span>
+                    <textarea class="smartie-input" rows="4" @bind="_description"></textarea>
+                </label>
+
+                <div class="task-detail-row">
+                    <label class="task-detail-field">
+                        <span>Priority</span>
+                        <select class="smartie-select" @bind="_priority">
+                            @foreach (var priority in Priorities)
+                            {
+                                <option value="@priority">@priority</option>
+                            }
+                        </select>
+                    </label>
+
+                    <label class="task-detail-field">
+                        <span>Status</span>
+                        <select class="smartie-select" @bind="_status">
+                            @foreach (var status in Statuses)
+                            {
+                                <option value="@status">@FormatStatus(status)</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+
+                <label class="task-detail-field">
+                    <span>Due Date</span>
+                    <input type="datetime-local"
+                           class="smartie-input"
+                           value="@FormatDueDateInput(_dueDate)"
+                           @onchange="HandleDueDateChanged" />
+                </label>
+
+                <div class="task-detail-checks">
+                    <label class="smartie-check"><input type="checkbox" @bind="_pinned" /> Pin task</label>
+                    <label class="smartie-check"><input type="checkbox" @bind="_archived" /> Archived</label>
+                </div>
+            </div>
+
+            <footer class="smartie-dialog-footer task-detail-actions">
+                <SmartieButton Variant="SmartieButtonVariant.Danger" @onclick="HandleDeleteAsync">Delete</SmartieButton>
+                <SmartieButton Variant="SmartieButtonVariant.Secondary" @onclick="HandleCancelAsync">Cancel</SmartieButton>
+                <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="HandleSaveAsync">Save</SmartieButton>
+            </footer>
+        </div>
+    </div>
+}
+
+@code {
+    private string _title = string.Empty;
+    private string _description = string.Empty;
+    private string _priority = "Medium";
+    private string _status = "Pending";
+    private DateTimeOffset? _dueDate;
+    private bool _pinned;
+    private bool _archived;
+
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public TaskDto? Task { get; set; }
+    [Parameter] public EventCallback<TaskDetailResult> OnSave { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private static readonly string[] Priorities = ["Low", "Medium", "High", "Critical"];
+    private static readonly string[] Statuses = ["Pending", "InProgress", "Completed", "Cancelled"];
+
+    protected override void OnParametersSet()
+    {
+        if (Task is null)
+        {
+            return;
+        }
+
+        _title = Task.Title;
+        _description = Task.Description ?? string.Empty;
+        _priority = Task.Priority;
+        _status = Task.Status;
+        _dueDate = Task.DueDate;
+        _pinned = Task.Pinned;
+        _archived = Task.Archived;
+    }
+
+    private async Task HandleSaveAsync()
+    {
+        if (Task is null || string.IsNullOrWhiteSpace(_title))
+        {
+            return;
+        }
+
+        await OnSave.InvokeAsync(new TaskDetailResult(
+            _title.Trim(),
+            string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+            _priority,
+            _status,
+            _dueDate,
+            _pinned,
+            _archived));
+    }
+
+    private async Task HandleDeleteAsync() => await OnDelete.InvokeAsync();
+
+    private async Task HandleCancelAsync() => await OnCancel.InvokeAsync();
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await HandleCancelAsync();
+        }
+    }
+
+    private void HandleDueDateChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            _dueDate = null;
+            return;
+        }
+
+        if (DateTime.TryParse(value, out var local))
+        {
+            _dueDate = new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+        }
+    }
+
+    private static string? FormatDueDateInput(DateTimeOffset? dueDate) =>
+        dueDate?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm");
+
+    private static string FormatStatus(string status) => status switch
+    {
+        "InProgress" => "In Progress",
+        _ => status
+    };
+
+    public sealed record TaskDetailResult(
+        string Title,
+        string? Description,
+        string Priority,
+        string Status,
+        DateTimeOffset? DueDate,
+        bool Pinned,
+        bool Archived);
+}

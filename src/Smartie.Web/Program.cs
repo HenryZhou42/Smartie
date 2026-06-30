@@ -15,6 +15,9 @@ builder.Services.AddHttpClient<SmartieApiClient>(client =>
 });
 builder.Services.AddSingleton<IDocumentFilePickerService, WebDocumentFilePickerService>();
 builder.Services.AddSingleton<INativeKnowledgeDropBridge, NullNativeKnowledgeDropBridge>();
+builder.Services.AddSingleton<CommandPaletteHost>();
+builder.Services.AddSingleton<ILocalFileSystemService, WebLocalFileSystemService>();
+builder.Services.AddScoped<ThemeApplicator>();
 
 var app = builder.Build();
 

@@ -1,6 +1,7 @@
 @page "/"
 @inject SmartieApiClient Api
 @inject NavigationManager Navigation
+@inject CommandPaletteHost CommandPalette
 
 <PageTitle>Smartie · Dashboard</PageTitle>
 
@@ -36,25 +37,13 @@
     <section class="dashboard-section">
         <h2 class="section-title">Quick Actions</h2>
         <div class="quick-actions-grid">
-            @foreach (var action in QuickActions)
+            @foreach (var action in QuickActions.Where(a => a.Enabled))
             {
-                if (action.Enabled)
-                {
-                    <button type="button" class="dashboard-card quick-action-card" @onclick="action.OnClick">
-                        <span class="quick-action-icon"><NavIcon Name="@action.Icon" /></span>
-                        <span class="card-title">@action.Title</span>
-                        <span class="card-body">@action.Description</span>
-                    </button>
-                }
-                else
-                {
-                    <div class="dashboard-card quick-action-card is-disabled" title="Coming soon">
-                        <span class="quick-action-icon"><NavIcon Name="@action.Icon" /></span>
-                        <span class="card-title">@action.Title</span>
-                        <span class="card-body">@action.Description</span>
-                        <span class="badge-soon">Coming Soon</span>
-                    </div>
-                }
+                <button type="button" class="dashboard-card quick-action-card" @onclick="action.OnClick">
+                    <span class="quick-action-icon"><NavIcon Name="@action.Icon" /></span>
+                    <span class="card-title">@action.Title</span>
+                    <span class="card-body">@action.Description</span>
+                </button>
             }
         </div>
     </section>
@@ -64,10 +53,55 @@
             <header class="card-header">
                 <h3 class="card-title">Tasks Today</h3>
             </header>
-            <div class="card-empty">
-                <p class="card-body">No tasks for today.</p>
-                <button type="button" class="btn-card is-disabled" disabled title="Coming soon">Create Task</button>
-            </div>
+            @if (_taskStats is null)
+            {
+                <p class="card-body">Loading tasks…</p>
+            }
+            else if (_taskStats.TotalCount == 0)
+            {
+                <div class="card-empty">
+                    <p class="card-body">No tasks yet. Add your first task to stay on track.</p>
+                    <button type="button" class="btn-card" @onclick="OpenTasks">Create Task</button>
+                </div>
+            }
+            else
+            {
+                <dl class="status-list">
+                    <div class="status-row">
+                        <dt>Pending</dt>
+                        <dd>@_taskStats.PendingCount</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Completed</dt>
+                        <dd>@_taskStats.CompletedCount</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Due today</dt>
+                        <dd>@_taskStats.DueTodayCount</dd>
+                    </div>
+                </dl>
+                @if (_taskStats.RecentTasks.Count > 0)
+                {
+                    <ul class="conversation-list-dash">
+                        @foreach (var task in _taskStats.RecentTasks.Take(3))
+                        {
+                            <li>
+                                <button type="button" class="conversation-row" @onclick="OpenTasks">
+                                    @if (task.Pinned)
+                                    {
+                                        <span class="pin-icon" title="Pinned"><NavIcon Name="pin" /></span>
+                                    }
+                                    <span class="conversation-row-title">@task.Title</span>
+                                    <span class="conversation-row-time">@FormatTaskStatus(task.Status)</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+                <div class="card-footer">
+                    <button type="button" class="btn-card btn-card-ghost" @onclick="OpenTasks">Open Tasks</button>
+                </div>
+            }
         </article>
 
         <article class="dashboard-card dashboard-grid-card">
@@ -145,12 +179,154 @@
             }
         </article>
 
-        <article class="dashboard-card dashboard-grid-card is-muted">
+        <article class="dashboard-card dashboard-grid-card">
+            <header class="card-header">
+                <h3 class="card-title">Desktop Files</h3>
+            </header>
+            @if (_fileStats is null)
+            {
+                <p class="card-body">Loading files…</p>
+            }
+            else
+            {
+                <dl class="status-list">
+                    <div class="status-row">
+                        <dt>Recent files</dt>
+                        <dd>@_fileStats.RecentFileCount</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Favorite folders</dt>
+                        <dd>@_fileStats.FavoriteFolderCount</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Indexed documents</dt>
+                        <dd>@_fileStats.IndexedDocumentCount</dd>
+                    </div>
+                </dl>
+                @if (_fileStats.RecentFiles.Count > 0)
+                {
+                    <ul class="conversation-list-dash">
+                        @foreach (var file in _fileStats.RecentFiles.Take(3))
+                        {
+                            <li>
+                                <button type="button" class="conversation-row" @onclick="OpenFiles">
+                                    <span class="conversation-row-title">@file.FileName</span>
+                                    <span class="conversation-row-time">@FormatBytes(file.SizeBytes)</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+                @if (_fileStats.RecentlyImported.Count > 0)
+                {
+                    <p class="card-body card-subheading">Recently imported</p>
+                    <ul class="conversation-list-dash">
+                        @foreach (var doc in _fileStats.RecentlyImported.Take(2))
+                        {
+                            <li>
+                                <button type="button" class="conversation-row" @onclick="OpenKnowledgeBase">
+                                    <span class="conversation-row-title">@doc.Name</span>
+                                    <span class="conversation-row-time">@FormatRelativeTime(doc.CreatedAt)</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+                <div class="card-footer">
+                    <button type="button" class="btn-card btn-card-ghost" @onclick="OpenFiles">Open Files</button>
+                </div>
+            }
+        </article>
+
+        <article class="dashboard-card dashboard-grid-card">
+            <header class="card-header">
+                <h3 class="card-title">Automations</h3>
+            </header>
+            @if (_automationStats is null)
+            {
+                <p class="card-body">Loading automations…</p>
+            }
+            else if (_automationStats.TotalCount == 0)
+            {
+                <div class="card-empty">
+                    <p class="card-body">Create scheduled workflows that run locally on your device.</p>
+                    <button type="button" class="btn-card" @onclick="OpenAutomations">Create Automation</button>
+                </div>
+            }
+            else
+            {
+                <dl class="status-list">
+                    <div class="status-row">
+                        <dt>Enabled</dt>
+                        <dd>@_automationStats.EnabledCount</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Disabled</dt>
+                        <dd>@_automationStats.DisabledCount</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Upcoming</dt>
+                        <dd>@_automationStats.UpcomingRuns.Count</dd>
+                    </div>
+                </dl>
+                @if (_automationStats.RecentRuns.Count > 0)
+                {
+                    <ul class="conversation-list-dash">
+                        @foreach (var run in _automationStats.RecentRuns.Take(3))
+                        {
+                            <li>
+                                <button type="button" class="conversation-row" @onclick="OpenAutomations">
+                                    <span class="conversation-row-title">@run.AutomationName</span>
+                                    <span class="conversation-row-time">@run.Status</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+                <div class="card-footer">
+                    <button type="button" class="btn-card btn-card-ghost" @onclick="OpenAutomations">Open Automations</button>
+                </div>
+            }
+        </article>
+
+        <article class="dashboard-card dashboard-grid-card">
+            <header class="card-header">
+                <h3 class="card-title">Personalization</h3>
+            </header>
+            @if (_appearanceSettings is null)
+            {
+                <p class="card-body">Loading appearance…</p>
+            }
+            else
+            {
+                <dl class="status-list">
+                    <div class="status-row">
+                        <dt>Theme</dt>
+                        <dd>@_appearanceSettings.Theme</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Accent</dt>
+                        <dd>@_appearanceSettings.AccentColor</dd>
+                    </div>
+                    <div class="status-row">
+                        <dt>Animations</dt>
+                        <dd>@FormatAnimationStatus(_appearanceSettings.AnimationMode)</dd>
+                    </div>
+                </dl>
+                <div class="card-footer">
+                    <button type="button" class="btn-card btn-card-ghost" @onclick="OpenAppearanceSettings">Customize Appearance</button>
+                </div>
+            }
+        </article>
+
+        <article class="dashboard-card dashboard-grid-card">
             <header class="card-header">
                 <h3 class="card-title">Smart Memory</h3>
-                <span class="badge-soon">Coming Soon</span>
             </header>
-            <p class="card-body">Smart Memory will remember important facts and preferences across conversations — without sending your data to the cloud.</p>
+            <p class="card-body">Smartie remembers your preferences and projects across conversations — stored locally on this device.</p>
+            <div class="card-footer">
+                <button type="button" class="btn-card btn-card-ghost" @onclick="OpenMemory">Open Memory</button>
+            </div>
         </article>
 
         <article class="dashboard-card dashboard-grid-card">
@@ -235,10 +411,6 @@
                 <li>No login required</li>
                 <li>Local SQLite storage</li>
                 <li>Bring your own AI key</li>
-                <li class="edition-cloud">
-                    <NavIcon Name="cloud" />
-                    Smartie Cloud: Coming Soon
-                </li>
             </ul>
         </article>
     </section>
@@ -253,6 +425,10 @@
     private List<ConversationDto> _recentConversations = new();
     private List<ActivityItem> _activityItems = new();
     private DocumentStatsDto? _documentStats;
+    private TaskStatsDto? _taskStats;
+    private FileIntegrationStatsDto? _fileStats;
+    private AppearanceSettingsDto? _appearanceSettings;
+    private AutomationStatsDto? _automationStats;
 
     private string Greeting
     {
@@ -294,17 +470,17 @@
     {
         new QuickActionItem("New Chat", "Start a new conversation with Smartie.", "plus", true, StartNewChatAsync),
         new QuickActionItem("Upload Document", "Add a PDF, Word file, or note to your knowledge base.", "upload", true, () => { OpenKnowledgeBase(); return Task.CompletedTask; }),
-        new QuickActionItem("Create Task", "Add a reminder or productivity task.", "tasks", false, () => Task.CompletedTask),
-        new QuickActionItem("Open Command Bar", "Quickly launch Smartie actions.", "command", false, () => Task.CompletedTask),
+        new QuickActionItem("Create Task", "Add a reminder or productivity task.", "tasks", true, () => { OpenTasks(); return Task.CompletedTask; }),
+        new QuickActionItem("Open Command Bar", "Quickly launch Smartie actions.", "command", true, () => { CommandPalette.RequestOpen(); return Task.CompletedTask; }),
         new QuickActionItem("Search Knowledge Base", "Find answers across your uploaded documents.", "search", true, () => { OpenKnowledgeBase(); return Task.CompletedTask; }),
         new QuickActionItem("Open Settings", "Configure AI providers and preferences.", "settings", true, () => { OpenSettings(); return Task.CompletedTask; })
     };
 
     private sealed record ActivityItem(string Icon, string Text, DateTimeOffset At);
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        await LoadDashboardAsync();
+        _ = LoadDashboardAsync();
     }
 
     private async Task LoadDashboardAsync()
@@ -352,6 +528,44 @@
         {
             _documentStats = null;
         }
+
+        try
+        {
+            _taskStats = await Api.GetTaskStatsAsync();
+        }
+        catch
+        {
+            _taskStats = null;
+        }
+
+        try
+        {
+            _fileStats = await Api.GetFileIntegrationStatsAsync();
+        }
+        catch
+        {
+            _fileStats = null;
+        }
+
+        try
+        {
+            _appearanceSettings = await Api.GetAppearanceSettingsAsync();
+        }
+        catch
+        {
+            _appearanceSettings = null;
+        }
+
+        try
+        {
+            _automationStats = await Api.GetAutomationStatsAsync();
+        }
+        catch
+        {
+            _automationStats = null;
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task StartNewChatAsync()
@@ -375,6 +589,34 @@
 
     private void OpenKnowledgeBase() =>
         Navigation.NavigateTo("/knowledge");
+
+    private void OpenMemory() =>
+        Navigation.NavigateTo("/memory");
+
+    private void OpenTasks() =>
+        Navigation.NavigateTo("/tasks");
+
+    private void OpenFiles() =>
+        Navigation.NavigateTo("/files");
+
+    private void OpenAppearanceSettings() =>
+        Navigation.NavigateTo("/settings#appearance");
+
+    private void OpenAutomations() =>
+        Navigation.NavigateTo("/automations");
+
+    private static string FormatAnimationStatus(string mode) => mode switch
+    {
+        "Disabled" => "Disabled",
+        "ReducedMotion" => "Reduced motion",
+        _ => "Enabled"
+    };
+
+    private static string FormatTaskStatus(string status) => status switch
+    {
+        "InProgress" => "In Progress",
+        _ => status
+    };
 
     private static string FormatBytes(long bytes)
     {

@@ -15,6 +15,23 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IAiSettingsService, AiSettingsService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IDocumentExtractionService, DocumentExtractionService>();
+        services.AddScoped<IDocumentChunkingService, DocumentChunkingService>();
+        services.AddScoped<IDocumentEmbeddingService, DocumentEmbeddingService>();
+        services.AddScoped<ISemanticSearchService, SemanticSearchService>();
+        services.AddScoped<IMemoryService, MemoryService>();
+        services.AddScoped<IMemoryPromptBuilder, MemoryPromptBuilder>();
+        services.AddSingleton<IMemoryExtractor, MemoryExtractor>();
+        services.AddScoped<ICommandPaletteService, CommandPaletteService>();
+        services.AddScoped<ITaskService, TaskService>();
+        services.AddScoped<IFileIntegrationService, FileIntegrationService>();
+        services.AddScoped<IAppearanceService, AppearanceService>();
+        services.AddScoped<IPluginService, PluginService>();
+        services.AddScoped<AutomationActionExecutor>();
+        services.AddScoped<IAutomationService, AutomationService>();
+        services.AddScoped<IAutomationEventPublisher>(sp =>
+            (IAutomationEventPublisher)sp.GetRequiredService<IAutomationService>());
+        services.AddScoped<IOnboardingService, OnboardingService>();
+        services.AddSingleton<IAppMetricsService, AppMetricsService>();
         services.AddScoped<IChatAttachmentService, ChatAttachmentService>();
         services.AddScoped<IAttachedDocumentPromptBuilder, AttachedDocumentPromptBuilder>();
         return services;

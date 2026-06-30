@@ -5,23 +5,22 @@ using Microsoft.Maui.LifecycleEvents;
 using Smartie.Maui.Hosting;
 using Smartie.Shared.Services;
 
-#if WINDOWS
-using Microsoft.Maui.Platform;
-using Smartie.Maui.Platform;
-#endif
-
 namespace Smartie.Maui;
 
 public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
+#if WINDOWS
+		WebView2Bootstrapper.ApplyProcessDefaults();
+#endif
+
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
 			.ConfigureFonts(fonts =>
 			{
-				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+				// OpenSans font file is optional; system fonts are used by the Blazor UI.
 			})
 			.ConfigureLifecycleEvents(ConfigureLifecycleEvents);
 
@@ -38,6 +37,9 @@ public static class MauiProgram
 
 		builder.Services.AddSingleton<IDocumentFilePickerService, Services.MauiDocumentFilePickerService>();
 		builder.Services.AddSingleton<INativeKnowledgeDropBridge, Services.MauiNativeKnowledgeDropBridge>();
+		builder.Services.AddSingleton<CommandPaletteHost>();
+		builder.Services.AddSingleton<ILocalFileSystemService, Services.MauiLocalFileSystemService>();
+		builder.Services.AddScoped<ThemeApplicator>();
 
 		if (hostEmbedded)
 		{
@@ -56,7 +58,8 @@ public static class MauiProgram
 		builder.Services.AddMauiBlazorWebView();
 
 #if DEBUG
-		builder.Services.AddBlazorWebViewDeveloperTools();
+		// Developer tools can prevent WebView2 from finishing initialization on some machines.
+		// builder.Services.AddBlazorWebViewDeveloperTools();
 		builder.Logging.AddDebug();
 #endif
 
@@ -66,13 +69,7 @@ public static class MauiProgram
 #if WINDOWS
 	private static void ConfigureLifecycleEvents(ILifecycleBuilder events)
 	{
-		events.AddWindows(windows => windows.OnWindowCreated(window =>
-		{
-			if (window is MauiWinUIWindow mauiWindow)
-			{
-				NativeWindowDropHook.Install(mauiWindow);
-			}
-		}));
+		// Native drag/drop is attached from MainPage after BlazorWebView initializes.
 	}
 #else
 	private static void ConfigureLifecycleEvents(ILifecycleBuilder events)

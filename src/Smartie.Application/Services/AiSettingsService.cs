@@ -117,6 +117,26 @@ public sealed class AiSettingsService : IAiSettingsService
         return new ResolvedAiProvider(info.Key, chatModel, apiKey, endpoint, _options.SystemPrompt);
     }
 
+    public async Task<ResolvedEmbeddingProvider> ResolveEmbeddingAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var info = AiProviderCatalog.Get(AiProviderCatalog.Google);
+        var cred = await _repository.FindCredentialAsync(userId, info.Key, cancellationToken).ConfigureAwait(false);
+
+        var apiKey = !string.IsNullOrEmpty(cred?.ApiKeyProtected)
+            ? _protector.Unprotect(cred!.ApiKeyProtected!)
+            : NullIfBlank(_options.Google.ApiKey);
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            throw new AiServiceException(
+                "No Google API key configured for embeddings. Add one in Settings under Google Gemini.");
+        }
+
+        return new ResolvedEmbeddingProvider(info.Key, _options.Google.EmbeddingModel, apiKey);
+    }
+
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

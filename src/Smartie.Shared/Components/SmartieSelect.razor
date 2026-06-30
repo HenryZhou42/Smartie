@@ -1,0 +1,15 @@
+<select class="smartie-select @AdditionalClass"
+        disabled="@Disabled"
+        @bind="Selected"
+        @attributes="AdditionalAttributes">
+    @ChildContent
+</select>
+
+@code {
+    [Parameter] public string? Selected { get; set; }
+    [Parameter] public EventCallback<string?> SelectedChanged { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? AdditionalClass { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+}

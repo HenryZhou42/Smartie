@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <!-- Semantic Kernel connectors (Google) and some abstractions are marked [Experimental],
@@ -12,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Smartie.Domain\Smartie.Domain.csproj" />
     <ProjectReference Include="..\Smartie.Application\Smartie.Application.csproj" />
+    <ProjectReference Include="..\Smartie.Plugins.Abstractions\Smartie.Plugins.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +23,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.9" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.8" />

@@ -9,15 +9,18 @@ public sealed class DocumentExtractionService : IDocumentExtractionService
 {
     private readonly IDocumentRepository _repository;
     private readonly IDocumentTextExtractionRouter _router;
+    private readonly IDocumentChunkingService _chunking;
     private readonly ILogger<DocumentExtractionService> _logger;
 
     public DocumentExtractionService(
         IDocumentRepository repository,
         IDocumentTextExtractionRouter router,
+        IDocumentChunkingService chunking,
         ILogger<DocumentExtractionService> logger)
     {
         _repository = repository;
         _router = router;
+        _chunking = chunking;
         _logger = logger;
     }
 
@@ -87,6 +90,22 @@ public sealed class DocumentExtractionService : IDocumentExtractionService
         }
 
         await _repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        if (document.ExtractionStatus == DocumentExtractionStatus.Completed &&
+            !string.IsNullOrWhiteSpace(document.ExtractedText))
+        {
+            try
+            {
+                document = await _chunking
+                    .ChunkAndPersistAsync(documentId, userId, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Chunking failed for document {DocumentId}.", documentId);
+            }
+        }
+
         return document;
     }
 }

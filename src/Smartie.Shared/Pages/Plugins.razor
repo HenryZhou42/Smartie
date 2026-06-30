@@ -1,0 +1,304 @@
+@page "/plugins"
+@page "/plugins/page/{PluginKey}/{PageId}"
+@inject SmartieApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Smartie · Plugins</PageTitle>
+
+<div class="plugins-page">
+    @if (!string.IsNullOrEmpty(_pageRoutePluginKey) && !string.IsNullOrEmpty(_pageRoutePageId))
+    {
+        @if (_pageContent is null)
+        {
+            <div class="plugins-loading">@(_pageError ?? "Loading plugin page…")</div>
+        }
+        else
+        {
+            <header class="plugins-header">
+                <button type="button" class="btn-table" @onclick="BackToManager">Back to Plugins</button>
+                <div>
+                    <h1>@_pageContent.Title</h1>
+                    <p>@_pageContent.PluginKey · Plugin page</p>
+                </div>
+            </header>
+            <article class="plugins-page-content">
+                @((MarkupString)(_pageContent.MarkupContent ?? "<p>No content.</p>"))
+            </article>
+        }
+    }
+    else
+    {
+        <header class="plugins-header">
+            <div>
+                <h1>Plugins</h1>
+                <p>Extend Smartie with trusted local assemblies from your Plugins folder. Community Edition stays local-only — no marketplace or cloud plugins.</p>
+            </div>
+            <div class="plugins-header-actions">
+                <button type="button" class="btn-knowledge" @onclick="ScanAsync">Scan Plugins Folder</button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrEmpty(_status))
+        {
+            <div class="plugins-status">@_status</div>
+        }
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="plugins-error">@_error</div>
+        }
+
+        @if (_developer is not null)
+        {
+            <dl class="smartie-stat-grid plugins-summary-list">
+                <SmartieStatCard Label="Plugin count" Value="@_developer.PluginCount.ToString()" />
+                <SmartieStatCard Label="Loaded" Value="@_developer.LoadedCount.ToString()" />
+                <SmartieStatCard Label="Failed" Value="@_developer.FailedCount.ToString()" />
+                <SmartieStatCard Label="Total load time" Value="@($"{_developer.TotalLoadTimeMs} ms")" />
+            </dl>
+        }
+
+        @if (_loading)
+        {
+            <div class="plugins-loading">Loading plugins…</div>
+        }
+        else
+        {
+            <section class="plugins-section dashboard-card">
+                <h2 class="smartie-section-title">Installed Plugins (@_plugins.Count)</h2>
+                @if (_plugins.Count == 0)
+                {
+                    <SmartieEmptyState Icon="🧩"
+                                       Title="No plugins found"
+                                       Subtitle="Place a plugin folder under %LOCALAPPDATA%/Smartie/Plugins/ and scan again.">
+                        <Action>
+                            <SmartieButton Variant="SmartieButtonVariant.Primary" @onclick="ScanAsync">Scan Plugins Folder</SmartieButton>
+                        </Action>
+                    </SmartieEmptyState>
+                }
+                else
+                {
+                    <div class="plugins-grid">
+                        @foreach (var plugin in _plugins)
+                        {
+                            <article class="plugins-card @(plugin.Enabled ? "enabled" : "disabled")">
+                                <header class="plugins-card-head">
+                                    <div>
+                                        <h3>@plugin.Name</h3>
+                                        <p>@plugin.Author · v@plugin.Version · @plugin.Category</p>
+                                    </div>
+                                    <span class="plugins-badge @(plugin.IsLoaded ? "loaded" : plugin.Enabled ? "enabled" : "off")">
+                                        @(plugin.IsLoaded ? "Loaded" : plugin.Enabled ? "Enabled" : "Disabled")
+                                    </span>
+                                </header>
+                                <p class="plugins-card-body">@plugin.Description</p>
+                                @if (!string.IsNullOrEmpty(plugin.LoadError))
+                                {
+                                    <p class="plugins-card-error">@plugin.LoadError</p>
+                                }
+                                <dl class="plugins-card-meta">
+                                    <div><dt>Folder</dt><dd>@plugin.FolderName</dd></div>
+                                    <div><dt>Commands</dt><dd>@plugin.Commands.Count</dd></div>
+                                    <div><dt>Pages</dt><dd>@plugin.Pages.Count</dd></div>
+                                    <div><dt>Tools</dt><dd>@plugin.Tools.Count</dd></div>
+                                </dl>
+                                @if (plugin.Pages.Count > 0)
+                                {
+                                    <div class="plugins-card-pages">
+                                        @foreach (var pluginPage in plugin.Pages)
+                                        {
+                                            <button type="button" class="btn-table" @onclick="() => OpenPage(plugin.PluginKey, pluginPage.Id)">@pluginPage.Title</button>
+                                        }
+                                    </div>
+                                }
+                                <div class="plugins-card-actions">
+                                    @if (plugin.Enabled)
+                                    {
+                                        <button type="button" class="btn-table" disabled="@plugin.IsLoaded" @onclick="() => LoadPluginAsync(plugin.Id)">Load</button>
+                                        <button type="button" class="btn-table" disabled="@(!plugin.IsLoaded)" @onclick="() => UnloadPluginAsync(plugin.Id)">Unload</button>
+                                        <button type="button" class="btn-table" @onclick="() => DisablePluginAsync(plugin.Id)">Disable</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn-table btn-knowledge-primary" @onclick="() => EnablePluginAsync(plugin.Id)">Enable</button>
+                                    }
+                                    <button type="button" class="btn-table" @onclick="() => SelectPlugin(plugin)">Details & Logs</button>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            @if (_selected is not null)
+            {
+                <SmartieDevPanel Title="@($"Plugin Details · {_selected.Name}")">
+                    <dl class="plugins-detail-list">
+                        <div><dt>Plugin key</dt><dd>@_selected.PluginKey</dd></div>
+                        <div><dt>Entry assembly</dt><dd>@_selected.EntryAssembly</dd></div>
+                        <div><dt>Last load</dt><dd>@FormatLoadTime(_selected.LastLoadDurationMs)</dd></div>
+                        <div><dt>Installed</dt><dd>@_selected.InstalledAt.ToLocalTime()</dd></div>
+                    </dl>
+                    @if (_selected.Commands.Count > 0)
+                    {
+                        <h3>Commands</h3>
+                        <ul class="plugins-command-list">
+                            @foreach (var command in _selected.Commands)
+                            {
+                                <li>@command.Title — @command.Description</li>
+                            }
+                        </ul>
+                    }
+                    @if (_selected.Tools.Count > 0)
+                    {
+                        <h3>Tools</h3>
+                        <ul class="plugins-command-list">
+                            @foreach (var tool in _selected.Tools)
+                            {
+                                <li>@tool.Name (@tool.Category)</li>
+                            }
+                        </ul>
+                    }
+                    <h3>Plugin Logs</h3>
+                    @if (_logs.Count == 0)
+                    {
+                        <p class="plugins-empty">No logs yet.</p>
+                    }
+                    else
+                    {
+                        <ul class="plugins-log-list">
+                            @foreach (var log in _logs)
+                            {
+                                <li><span class="plugins-log-level">@log.Level</span> @log.Message <span class="plugins-log-time">@log.CreatedAt.ToLocalTime()</span></li>
+                            }
+                        </ul>
+                    }
+                </SmartieDevPanel>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string? PluginKey { get; set; }
+    [Parameter] public string? PageId { get; set; }
+
+    private List<PluginDto> _plugins = new();
+    private PluginDto? _selected;
+    private List<PluginLogDto> _logs = new();
+    private PluginDeveloperDto? _developer;
+    private PluginPageContentDto? _pageContent;
+    private string? _pageRoutePluginKey;
+    private string? _pageRoutePageId;
+    private string? _status;
+    private string? _error;
+    private string? _pageError;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _pageRoutePluginKey = PluginKey;
+        _pageRoutePageId = PageId;
+
+        if (!string.IsNullOrEmpty(_pageRoutePluginKey) && !string.IsNullOrEmpty(_pageRoutePageId))
+        {
+            await LoadPageAsync();
+            return;
+        }
+
+        await LoadManagerAsync();
+    }
+
+    private async Task LoadManagerAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _plugins = (await Api.GetPluginsAsync()).ToList();
+            _developer = await Api.GetPluginDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadPageAsync()
+    {
+        _pageError = null;
+        try
+        {
+            _pageContent = await Api.GetPluginPageContentAsync(_pageRoutePluginKey!, _pageRoutePageId!);
+        }
+        catch (Exception ex)
+        {
+            _pageError = ex.Message;
+        }
+    }
+
+    private async Task ScanAsync()
+    {
+        try
+        {
+            var result = await Api.ScanPluginsAsync();
+            _status = $"Discovered {result.DiscoveredCount} plugin folder(s). Added {result.NewCount} new installation(s).";
+            _plugins = result.Plugins.ToList();
+            _developer = await Api.GetPluginDeveloperAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task EnablePluginAsync(Guid id) => await MutateAsync(() => Api.EnablePluginAsync(id), "Plugin enabled.");
+    private async Task DisablePluginAsync(Guid id) => await MutateAsync(() => Api.DisablePluginAsync(id), "Plugin disabled.");
+    private async Task LoadPluginAsync(Guid id) => await MutateAsync(() => Api.LoadPluginAsync(id), "Plugin loaded.");
+    private async Task UnloadPluginAsync(Guid id) => await MutateAsync(() => Api.UnloadPluginAsync(id), "Plugin unloaded.");
+
+    private async Task MutateAsync(Func<Task<PluginDto>> action, string successMessage)
+    {
+        try
+        {
+            var updated = await action();
+            _plugins = _plugins.Select(p => p.Id == updated.Id ? updated : p).ToList();
+            if (_selected?.Id == updated.Id)
+            {
+                _selected = updated;
+                _logs = (await Api.GetPluginLogsAsync(updated.Id)).ToList();
+            }
+
+            _developer = await Api.GetPluginDeveloperAsync();
+            _status = successMessage;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task SelectPlugin(PluginDto plugin)
+    {
+        _selected = plugin;
+        try
+        {
+            _logs = (await Api.GetPluginLogsAsync(plugin.Id)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void OpenPage(string pluginKey, string pageId) =>
+        Navigation.NavigateTo($"/plugins/page/{Uri.EscapeDataString(pluginKey)}/{Uri.EscapeDataString(pageId)}");
+
+    private void BackToManager() => Navigation.NavigateTo("/plugins");
+
+    private static string FormatLoadTime(long? ms) => ms is null ? "—" : $"{ms} ms";
+}

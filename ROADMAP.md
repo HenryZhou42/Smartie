@@ -1,6 +1,6 @@
 # Smartie Roadmap
 
-## Shipped in Community Edition v1.0
+## Shipped in Community Edition v0.9 RC
 
 - Chat with multi-provider AI (Gemini, OpenAI, OpenRouter, Ollama)
 - Knowledge Base with extraction, chunking, embeddings, semantic search, RAG

@@ -69,17 +69,38 @@ This will:
 
 ## 3. Portable ZIP package
 
-### Generate
+### Generate (PowerShell script — recommended)
 
 ```powershell
 .\scripts\publish-portable.ps1 -Version 0.9.0
 ```
 
-Or with the publish profile:
+Creates the publish folder, `README.txt`, safety checks, and **`dist/Smartie-0.9.0-portable.zip`**.
+
+### Generate (Visual Studio)
+
+1. Open **`Smartie.sln`** in Visual Studio 2022
+2. Set startup project to **`Smartie.Maui`**
+3. Toolbar: **Release** · **x64**
+4. Right-click **`Smartie.Maui`** → **Publish…**
+5. Select profile **`win-x64-portable`** (or create **Folder** profile pointing to `dist\Smartie-0.9.0-portable\publish\`)
+6. Confirm settings:
+   - Target framework: `net9.0-windows10.0.19041.0`
+   - Deployment: **Self-contained**
+   - Runtime: **win-x64**
+   - **Unpacked** (not MSIX)
+7. Click **Publish**
+8. Zip the **contents** of `dist\Smartie-0.9.0-portable\publish\` (not the `publish` folder itself) as **`Smartie-0.9.0-portable.zip`**
+
+> **Do not** use `dist\Smartie-0.9.0-msix\` for portable builds — that path is for MSIX only.
+
+### Generate (dotnet CLI)
 
 ```powershell
 dotnet publish src/Smartie.Maui/Smartie.Maui.csproj -p:PublishProfile=win-x64-portable
 ```
+
+Then zip manually or run `.\scripts\publish-portable.ps1` to create the ZIP.
 
 ### Output
 
@@ -231,13 +252,13 @@ Manual smoke test:
 ## 8. GitHub Release workflow
 
 1. Bump version (section 5)
-2. Run `.\scripts\publish-release.ps1 -Version 0.9.0`
+2. Run `.\scripts\publish-release.ps1 -Version 0.9.0 -SkipMsix` (portable only for public RC)
 3. Add screenshots to `screenshots/` (see `screenshots/README.md`)
-4. Create a GitHub Release tagged `v0.9.0`
-5. Attach:
-   - `dist/Smartie-0.9.0-portable.zip`
-   - MSIX from `dist/Smartie-0.9.0-msix/` (if built)
-6. Paste release notes (features, providers, CE limitations)
+4. Create a GitHub Release tagged **`v0.9.0`**
+5. Attach **`dist/Smartie-0.9.0-portable.zip`** (primary download)
+6. Paste release notes — template: [`.github/release-notes-template.md`](../.github/release-notes-template.md)
+
+**Public users:** ship the **portable ZIP** only. Unsigned MSIX fails with certificate error `0x800B010A` unless Developer Mode is enabled. Attach signed MSIX only after you have a code-signing certificate.
 
 ---
 

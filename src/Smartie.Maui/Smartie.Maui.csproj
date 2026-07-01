@@ -34,6 +34,15 @@
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
     </PropertyGroup>
 
+    <!-- MSIX publish (VS Publish / win-x64-msix profile). Debug F5 stays unpackaged (WindowsPackageType=None). -->
+    <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' and '$(WindowsPackageType)' == 'MSIX'">
+        <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+        <GenerateAppInstallerFile>false</GenerateAppInstallerFile>
+        <AppxPackageSigningEnabled Condition="'$(AppxPackageSigningEnabled)' == ''">false</AppxPackageSigningEnabled>
+        <GenerateAppxPackageOnBuild Condition="'$(GenerateAppxPackageOnBuild)' == ''">true</GenerateAppxPackageOnBuild>
+        <AppxPackageArchitecture>x64</AppxPackageArchitecture>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)' == 'Release'">
         <DebugType>none</DebugType>
         <DebugSymbols>false</DebugSymbols>

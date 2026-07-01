@@ -2,7 +2,40 @@
 
 **Smartie** is an AI-powered productivity operating system — desktop-first, local-first, and **bring-your-own-AI**. Community Edition is free, requires no login, keeps all your data on your machine, and ships with **no telemetry**.
 
-> **Edition:** Community Edition · **Version:** 0.9.0 RC · **Platform:** Windows desktop (.NET MAUI)
+> **Edition:** Community Edition · **Version:** 0.9.0 RC · **Platform:** Windows 10/11 desktop (x64)
+
+---
+
+## Download & install (recommended)
+
+**Portable ZIP** is the recommended way to try Smartie — no installer, no certificate, works on any Windows PC.
+
+### Requirements
+
+| | |
+|---|---|
+| **OS** | Windows 10 (1809+) or Windows 11, **64-bit** |
+| **Runtime** | WebView2 (preinstalled on Windows 11; [install manually](https://developer.microsoft.com/microsoft-edge/webview2/) on older systems if the app fails to open) |
+| **AI** | Your own API key (Gemini, OpenAI, or OpenRouter) **or** [Ollama](https://ollama.com) for local models |
+
+### Steps
+
+1. Download **`Smartie-0.9.0-portable.zip`** from [GitHub Releases](https://github.com/smartie-ai/smartie/releases)
+2. Extract to any folder (e.g. `C:\Apps\Smartie`)
+3. Run **`Smartie.exe`**
+4. If **Windows SmartScreen** appears: click **More info** → **Run anyway** (normal for unsigned indie apps)
+5. Complete the welcome wizard and add your AI provider under **Settings → AI Providers**
+
+### Uninstall
+
+- Delete the folder where you extracted Smartie
+- Optionally delete **`%LOCALAPPDATA%\Smartie`** to remove all local data (database, Knowledge Base files, settings)
+
+### MSIX installer
+
+Unsigned MSIX packages **cannot** be installed by most users (certificate error `0x800B010A`). MSIX is for **signed** builds or developer sideloading only. See [docs/Packaging.md](docs/Packaging.md).
+
+For public trials, use the **portable ZIP** above.
 
 ---
 
@@ -19,30 +52,6 @@
 | **Automations** | Scheduled and event-driven local workflows |
 | **Appearance** | Themes, accent colors, density — instant preview |
 | **Command palette** | Quick navigation and actions |
-
----
-
-## Installation
-
-### Portable (recommended for GitHub releases)
-
-1. Download `Smartie-0.9.0-portable.zip` from [Releases](https://github.com/smartie-ai/smartie/releases)
-2. Extract anywhere and run **Smartie.exe**
-3. Complete the welcome wizard and add your AI provider in **Settings**
-
-### MSIX
-
-Install the `.msix` package (requires sideloading or a signed certificate). See [docs/Packaging.md](docs/Packaging.md).
-
-### Build from source
-
-```powershell
-git clone https://github.com/smartie-ai/smartie.git
-cd smartie
-dotnet workload install maui   # once, admin required
-.\scripts\publish-portable.ps1 -Version 0.9.0
-# Run: dist\Smartie-0.9.0-portable\publish\Smartie.exe
-```
 
 ---
 
@@ -78,8 +87,6 @@ flowchart TD
 | `Smartie.Infrastructure` | SQLite, encryption, AI connectors |
 | `Smartie.Shared` | Blazor UI |
 
-Full packaging guide: **[docs/Packaging.md](docs/Packaging.md)** · Step-by-step install package build: **[docs/Installation-Package-Generation.md](docs/Installation-Package-Generation.md)**
-
 ---
 
 ## AI providers
@@ -100,7 +107,7 @@ Configure in **Settings → AI Providers**. Keys are encrypted with Windows DPAP
 - No login, accounts, or cloud sync
 - No hosted AI — you bring your own keys (except Ollama)
 - No telemetry or usage tracking
-- Windows desktop only for MAUI host (Web UI for development)
+- Windows desktop only for the MAUI host (Web UI for development)
 - Plugins are local folder only — no marketplace
 
 **Future:** Smartie Cloud (separate edition) — sign-in, sync, managed AI. See [ROADMAP.md](ROADMAP.md).
@@ -127,31 +134,83 @@ Never commit these paths — see `.gitignore`.
 
 ---
 
-## Development
+## Build from source
 
 ### Prerequisites
 
-- .NET 9 SDK
-- MAUI workload + WebView2
+- [.NET 9 SDK](https://dotnet.microsoft.com/download)
+- MAUI workload: `dotnet workload install maui` (admin PowerShell, once)
+- WebView2 Runtime (for running the app)
 
-### Run desktop app
+### Run in Visual Studio
 
-```bash
+1. Open `Smartie.sln`
+2. Set startup project to **`Smartie.Maui`**
+3. Configuration: **Debug** · Platform: **x64** (or Any CPU — repo syncs native WebView2 assets on build)
+4. Press **F5**
+
+If the window is blank on first run, **Rebuild Solution** and try again.
+
+### Run from CLI
+
+```powershell
 dotnet run --project src/Smartie.Maui -f net9.0-windows10.0.19041.0
 ```
 
-### Run browser dev UI
+### Browser dev UI (optional)
 
-```bash
+```powershell
 dotnet run --project src/Smartie.Api
 dotnet run --project src/Smartie.Web
 ```
 
 ### Tests
 
-```bash
+```powershell
 dotnet test
 ```
+
+---
+
+## Build a release package (maintainers)
+
+### Portable ZIP (GitHub Releases)
+
+**Script (recommended):**
+
+```powershell
+.\scripts\publish-portable.ps1 -Version 0.9.0
+```
+
+Output: `dist\Smartie-0.9.0-portable.zip`
+
+**Visual Studio:**
+
+1. Right-click **Smartie.Maui** → **Publish**
+2. Profile: **`win-x64-portable`**
+3. Target: `dist\Smartie-0.9.0-portable\publish\`
+4. Configuration: **Release** · Platform: **x64**
+5. Click **Publish**, then zip the **contents** of the `publish` folder as `Smartie-0.9.0-portable.zip`
+
+Full guide: **[docs/Installation-Package-Generation.md](docs/Installation-Package-Generation.md)**
+
+### MSIX (signed distribution only)
+
+```powershell
+.\scripts\publish-msix.ps1 -Version 0.9.0 -Sign -CertificatePath "cert.pfx" -CertificatePassword "password"
+```
+
+Details: **[docs/Packaging.md](docs/Packaging.md)**
+
+---
+
+## Documentation
+
+| Doc | Purpose |
+|-----|---------|
+| [docs/Installation-Package-Generation.md](docs/Installation-Package-Generation.md) | Step-by-step portable + MSIX build |
+| [docs/Packaging.md](docs/Packaging.md) | Packaging reference, troubleshooting |
+| [ROADMAP.md](ROADMAP.md) | Product roadmap |
 
 ---
 

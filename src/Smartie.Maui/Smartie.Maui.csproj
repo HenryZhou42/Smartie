@@ -32,6 +32,9 @@
 
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+
+        <!-- Unpackaged Smartie.exe Explorer/taskbar icon (Win32 resource embedded in the apphost). -->
+        <ApplicationIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">Resources\AppIcon\smartie.ico</ApplicationIcon>
     </PropertyGroup>
 
     <!-- MSIX publish (VS Publish / win-x64-msix profile). Debug F5 stays unpackaged (WindowsPackageType=None). -->
@@ -49,8 +52,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#7C5CFF" />
-        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#7C5CFF" BaseSize="128,128" />
+        <!-- App icon: Smartie brand PNG (replaces default .NET purple SVG template icons). -->
+        <MauiIcon Include="Resources\AppIcon\img\smartie.png" />
+        <MauiSplashScreen Include="Resources\AppIcon\img\smartie.png" Color="#12141B" BaseSize="128,128" />
         <MauiImage Include="Resources\Images\*" />
         <MauiImage Update="Resources\Images\dotnet_bot.svg" BaseSize="168,208" />
         <MauiFont Include="Resources\Fonts\*" />

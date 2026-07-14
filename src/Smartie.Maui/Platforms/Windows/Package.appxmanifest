@@ -16,7 +16,7 @@
   <Properties>
     <DisplayName>Smartie</DisplayName>
     <PublisherDisplayName>Henry Zhou</PublisherDisplayName>
-    <Logo>appiconStoreLogo.png</Logo>
+    <Logo>smartieStoreLogo.png</Logo>
     <Description>AI Productivity OS</Description>
   </Properties>
 
@@ -34,15 +34,15 @@
       <uap:VisualElements
         DisplayName="Smartie"
         Description="AI Productivity OS — local-first Community Edition"
-        Square150x150Logo="appiconMediumTile.png"
-        Square44x44Logo="appiconLogo.png"
+        Square150x150Logo="smartieMediumTile.png"
+        Square44x44Logo="smartieLogo.png"
         BackgroundColor="#12141B">
         <uap:DefaultTile
-          Square71x71Logo="appiconSmallTile.png"
-          Wide310x150Logo="appiconWideTile.png"
-          Square310x310Logo="appiconLargeTile.png"
+          Square71x71Logo="smartieSmallTile.png"
+          Wide310x150Logo="smartieWideTile.png"
+          Square310x310Logo="smartieLargeTile.png"
           ShortName="Smartie" />
-        <uap:SplashScreen Image="appiconSplashScreen.png" BackgroundColor="#12141B" />
+        <uap:SplashScreen Image="smartieSplashScreen.png" BackgroundColor="#12141B" />
       </uap:VisualElements>
     </Application>
   </Applications>

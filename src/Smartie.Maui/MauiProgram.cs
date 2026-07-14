@@ -70,6 +70,7 @@ public static class MauiProgram
 	private static void ConfigureLifecycleEvents(ILifecycleBuilder events)
 	{
 		// Native drag/drop is attached from MainPage after BlazorWebView initializes.
+		Smartie.Maui.Platform.WindowIconHelper.Configure(events);
 	}
 #else
 	private static void ConfigureLifecycleEvents(ILifecycleBuilder events)

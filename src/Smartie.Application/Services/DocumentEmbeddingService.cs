@@ -89,9 +89,9 @@ public sealed class DocumentEmbeddingService : IDocumentEmbeddingService
             var settings = await _aiSettings.ResolveEmbeddingAsync(userId, cancellationToken).ConfigureAwait(false);
             provider = _embeddingFactory.Create(settings);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogWarning(ex, "Could not resolve embedding provider for document {DocumentId}.", documentId);
+            _logger.LogWarning("Could not resolve embedding provider for document {DocumentId}.", documentId);
             foreach (var chunk in chunkList.Where(c => c.EmbeddingStatus == ChunkEmbeddingStatus.Pending))
             {
                 chunk.EmbeddingStatus = ChunkEmbeddingStatus.Failed;
@@ -126,11 +126,10 @@ public sealed class DocumentEmbeddingService : IDocumentEmbeddingService
                 chunk.EmbeddingGeneratedAt = DateTimeOffset.UtcNow;
                 chunk.EmbeddingStatus = ChunkEmbeddingStatus.Completed;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 chunk.EmbeddingStatus = ChunkEmbeddingStatus.Failed;
                 _logger.LogWarning(
-                    ex,
                     "Embedding generation failed for chunk {ChunkIndex} of document {DocumentId}.",
                     chunk.ChunkIndex,
                     documentId);

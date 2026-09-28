@@ -8,7 +8,7 @@ public static class SmartieAppInfo
     public const string ProductName = ProductMetadata.ProductName;
     public const string Edition = ProductMetadata.Edition;
     public const string Version = ProductMetadata.Version;
-    public const string BuildNumber = ProductMetadata.BuildNumber;
+    public static string BuildNumber => ProductMetadata.BuildNumber;
     public const string ReleaseLabel = ProductMetadata.ReleaseLabel;
     public const string GitHubUrl = ProductMetadata.GitHubUrl;
     public const string License = ProductMetadata.License;

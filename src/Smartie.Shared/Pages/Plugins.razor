@@ -10,7 +10,7 @@
     {
         @if (_pageContent is null)
         {
-            <div class="plugins-loading">@(_pageError ?? "Loading plugin page…")</div>
+            <div class="plugins-loading" role="status" aria-live="polite">@(_pageError ?? "Loading plugin page…")</div>
         }
         else
         {
@@ -40,12 +40,12 @@
 
         @if (!string.IsNullOrEmpty(_status))
         {
-            <div class="plugins-status">@_status</div>
+            <div class="plugins-status" role="status" aria-live="polite">@_status</div>
         }
 
         @if (!string.IsNullOrEmpty(_error))
         {
-            <div class="plugins-error">@_error</div>
+            <div class="plugins-error" role="alert">@_error</div>
         }
 
         @if (_developer is not null)
@@ -60,7 +60,7 @@
 
         @if (_loading)
         {
-            <div class="plugins-loading">Loading plugins…</div>
+            <div class="plugins-loading" role="status" aria-live="polite">Loading plugins…</div>
         }
         else
         {

@@ -76,6 +76,14 @@ public sealed class SmartieApiClient
         await _http.GetFromJsonAsync<AiSettingsDto>(await UrlAsync("api/settings/ai", ct), ct).ConfigureAwait(false)
         ?? new AiSettingsDto("google", Array.Empty<AiProviderDto>());
 
+    public async Task<string> TestAiConnectionAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.PostAsync(await UrlAsync("api/settings/ai/test", ct), null, ct);
+        var message = await response.Content.ReadFromJsonAsync<string>(cancellationToken: ct)
+            ?? "No connection result was returned.";
+        if (!response.IsSuccessStatusCode) throw new InvalidOperationException(message);
+        return message;
+    }
     public async Task SetAiProviderAsync(string provider, CancellationToken ct = default)
     {
         var response = await _http

@@ -15,12 +15,12 @@
 
     @if (!string.IsNullOrEmpty(_error))
     {
-        <div class="automations-error">@_error</div>
+        <div class="automations-error" role="alert">@_error</div>
     }
 
     @if (!string.IsNullOrEmpty(_status))
     {
-        <div class="automations-status">@_status</div>
+        <div class="automations-status" role="status" aria-live="polite">@_status</div>
     }
 
     @if (_stats is not null)
@@ -46,7 +46,7 @@
 
     @if (_loading)
     {
-        <div class="automations-loading">Loading automations…</div>
+        <div class="automations-loading" role="status" aria-live="polite">Loading automations…</div>
     }
     else if (_automations.Count == 0)
     {

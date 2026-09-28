@@ -14,6 +14,9 @@ namespace Smartie.Api;
 public static class SmartieApiBootstrap
 {
     public const string ClientCorsPolicy = "SmartieClient";
+    // MAUI BlazorWebView origins and the repository's browser development profiles.
+    private static readonly string[] ClientOrigins =
+        ["https://0.0.0.1", "http://0.0.0.1", "http://localhost:5072", "https://localhost:7060"];
 
     public static WebApplicationBuilder AddSmartieApi(this WebApplicationBuilder builder)
     {
@@ -25,7 +28,7 @@ public static class SmartieApiBootstrap
         builder.Services.AddCors(options =>
         {
             options.AddPolicy(ClientCorsPolicy, policy =>
-                policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+                policy.WithOrigins(ClientOrigins).AllowAnyHeader().AllowAnyMethod());
         });
 
         return builder;
@@ -46,6 +49,17 @@ public static class SmartieApiBootstrap
             app.MapOpenApi();
         }
 
+        // CORS alone does not reject simple cross-origin POST requests.
+        app.Use(async (context, next) =>
+        {
+            var origin = context.Request.Headers.Origin.ToString();
+            if (!string.IsNullOrEmpty(origin) && !ClientOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+            await next(context);
+        });
         app.UseCors(ClientCorsPolicy);
 
         app.MapGet("/health", () => Results.Ok(new { status = "ok" }));

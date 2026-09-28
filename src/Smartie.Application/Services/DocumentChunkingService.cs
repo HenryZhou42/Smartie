@@ -93,9 +93,9 @@ public sealed class DocumentChunkingService : IDocumentChunkingService
                     .GenerateAndPersistAsync(documentId, userId, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                _logger.LogWarning(ex, "Embedding generation failed for document {DocumentId}.", documentId);
+                _logger.LogWarning("Embedding generation failed for document {DocumentId}.", documentId);
             }
         }
 

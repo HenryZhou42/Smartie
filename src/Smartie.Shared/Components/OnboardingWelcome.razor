@@ -5,13 +5,13 @@
 @if (_visible)
 {
     <div class="onboarding-backdrop">
-        <div class="onboarding-card dashboard-card">
+        <div class="onboarding-card dashboard-card" role="dialog" aria-modal="true" aria-label="Welcome to Smartie">
             @if (_step == 0)
             {
                 <header class="onboarding-header">
                     <p class="edition-badge">@SmartieAppInfo.DisplayTitle</p>
                     <h1>Welcome to Smartie</h1>
-                    <p>Your local AI productivity OS. Everything stays on your device — no login, no cloud, no telemetry.</p>
+                    <p>Your local AI productivity OS. Your library is stored locally, with no login or telemetry. Cloud AI providers receive the prompts and context you send; Ollama can run locally.</p>
                 </header>
                 <ul class="onboarding-features">
                     <li>Chat with your choice of AI provider</li>
@@ -19,11 +19,11 @@
                     <li>Tasks, memory, files, plugins, and automations</li>
                 </ul>
             }
-            else if (_step == 1)
+            else if (_step == 3)
             {
                 <header class="onboarding-header">
                     <h1>Import Sample Documents</h1>
-                    <p>Try semantic search instantly with curated sample content.</p>
+                    <p>Import sample content to explore your library. Semantic search also requires a Google Gemini key and generated embeddings.</p>
                 </header>
                 @if (_status is not null)
                 {
@@ -59,7 +59,7 @@
                     }
                 </div>
             }
-            else if (_step == 3)
+            else if (_step == 1)
             {
                 <header class="onboarding-header">
                     <h1>Configure AI Provider</h1>
@@ -123,6 +123,7 @@
         {
             var status = await Api.GetOnboardingStatusAsync();
             _visible = !status.HasCompletedOnboarding;
+            await InvokeAsync(StateHasChanged);
         }
         catch
         {
@@ -192,7 +193,7 @@
         }
     }
 
-    private void OpenSettings() => Navigation.NavigateTo("/settings");
-    private void OpenDashboard() => Navigation.NavigateTo("/");
-    private void OpenKnowledge() => Navigation.NavigateTo("/knowledge");
+    private async Task OpenSettings() { await FinishAsync(); Navigation.NavigateTo("/settings#ai"); }
+    private async Task OpenDashboard() { await FinishAsync(); Navigation.NavigateTo("/"); }
+    private async Task OpenKnowledge() { await FinishAsync(); Navigation.NavigateTo("/knowledge"); }
 }

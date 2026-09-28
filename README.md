@@ -1,14 +1,14 @@
-# Smartie — Community Edition v0.9 RC
+# Smartie — Community Edition v0.9 Beta
 
-**Smartie** is an AI-powered productivity operating system — desktop-first, local-first, and **bring-your-own-AI**. Community Edition is free, requires no login, keeps all your data on your machine, and ships with **no telemetry**.
+**Smartie** is an AI-powered productivity operating system — desktop-first, local-first, and **bring-your-own-AI**. Community Edition is free, requires no login, stores your library on your machine, and ships with **no telemetry**.
 
-> **Edition:** Community Edition · **Version:** 0.9.0 RC · **Platform:** Windows 10/11 desktop (x64)
+> **Edition:** Community Edition · **Version:** 0.9.0 Beta · **Platform:** Windows 10/11 desktop (x64)
 
 ---
 
 ## Download & install (recommended)
 
-**Portable ZIP** is the recommended way to try Smartie — no installer, no certificate, works on any Windows PC.
+**Portable ZIP** is the recommended way to try Smartie — no installer, no certificate, for supported Windows x64 PCs.
 
 ### Requirements
 
@@ -20,7 +20,7 @@
 
 ### Steps
 
-1. Download **`Smartie-0.9.0-portable.zip`** from [GitHub Releases](https://github.com/smartie-ai/smartie/releases)
+1. Download **`Smartie-v0.9.0-beta-win-x64-portable.zip`** from [GitHub Releases](https://github.com/HenryZhou42/Smartie/releases)
 2. Extract to any folder (e.g. `C:\Apps\Smartie`)
 3. Run **`Smartie.exe`**
 4. If **Windows SmartScreen** appears: click **More info** → **Run anyway** (normal for unsigned indie apps)
@@ -182,7 +182,7 @@ dotnet test
 .\scripts\publish-portable.ps1 -Version 0.9.0
 ```
 
-Output: `dist\Smartie-0.9.0-portable.zip`
+Output: `dist\Smartie-v0.9.0-beta-win-x64-portable.zip`
 
 **Visual Studio:**
 
@@ -190,7 +190,7 @@ Output: `dist\Smartie-0.9.0-portable.zip`
 2. Profile: **`win-x64-portable`**
 3. Target: `dist\Smartie-0.9.0-portable\publish\`
 4. Configuration: **Release** · Platform: **x64**
-5. Click **Publish**, then zip the **contents** of the `publish` folder as `Smartie-0.9.0-portable.zip`
+5. Click **Publish**, then zip the **contents** of the `publish` folder as `Smartie-v0.9.0-beta-win-x64-portable.zip`
 
 Full guide: **[docs/Installation-Package-Generation.md](docs/Installation-Package-Generation.md)**
 
@@ -216,7 +216,7 @@ Details: **[docs/Packaging.md](docs/Packaging.md)**
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md). v0.9 RC focus: packaging, polish, GitHub release readiness.
+See [ROADMAP.md](ROADMAP.md). v0.9 Beta focus: packaging, polish, GitHub release readiness.
 
 - [x] Chat, Knowledge Base, RAG, Memory, Tasks, Files
 - [x] Plugins, Automations, themes, onboarding
@@ -234,3 +234,31 @@ Place release screenshots in [`screenshots/`](screenshots/) — see [`screenshot
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Provider setup and privacy
+
+In **Settings → AI Providers**, save your key and model, select **Use this**, and click
+**Test active provider**. A test sends a short synthetic prompt (possibly billable),
+does not create a conversation, and does not attach your library or memories.
+Then choose **Start chatting**. For Ollama, first run your local server and install the
+model whose name you enter; the default endpoint is http://localhost:11434/v1.
+
+Local-first describes storage, not offline operation with cloud models. Cloud chat
+receives your prompt, conversation context, attached text, and relevant memory/RAG
+context. Document and memory embeddings currently use Google Gemini independently
+of the chat provider. A Google key is therefore required for semantic search even
+when chat uses Ollama. Provider retention and billing policies apply.
+
+On Windows, credentials use current-user DPAPI. Copying the database to another
+Windows account/machine requires re-entering keys. The rest of the database and
+uploaded files are not encrypted by Smartie. Local plugins execute trusted code;
+install only plugins you trust. The loopback API is intended for the local desktop
+user, not remote hosting or multi-user isolation.
+
+## Beta validation
+
+See [release verification](docs/Release-Verification.md) for automated results and
+manual acceptance checks. A passing unit suite does not establish clean-machine
+compatibility or validate live provider credentials. PDF extraction handles text,
+not OCR of scanned pages. Automations require the app to remain running.
+The repository contains an MIT license; dependency licenses still apply.

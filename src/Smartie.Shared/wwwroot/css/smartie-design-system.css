@@ -9,12 +9,12 @@
     --smartie-space-6: 48px;
 
     --smartie-page-max: 1600px;
-    --smartie-caption: #8b93a7;
-    --smartie-input-bg: #0f172a;
-    --smartie-control-bg: #111827;
-    --smartie-secondary-bg: #1b2232;
-    --smartie-card-bg: rgba(17, 24, 39, 0.7);
-    --smartie-card-border: rgba(255, 255, 255, 0.05);
+    --smartie-caption: var(--smartie-fg-muted);
+    --smartie-input-bg: var(--smartie-bg);
+    --smartie-control-bg: var(--smartie-bg-elevated);
+    --smartie-secondary-bg: var(--smartie-bg-elevated);
+    --smartie-card-bg: var(--smartie-bg-elevated);
+    --smartie-card-border: var(--smartie-border-soft);
     --smartie-card-hover: rgba(124, 92, 255, 0.35);
     --smartie-accent-hover: #8a6eff;
     --smartie-danger: #f85149;
@@ -61,7 +61,7 @@
     font-weight: 700;
     letter-spacing: -0.03em;
     line-height: 1.15;
-    color: #f8fafc;
+    color: var(--smartie-fg);
 }
 
 .smartie-page-subtitle,
@@ -85,14 +85,14 @@
     font-size: 24px;
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: #f8fafc;
+    color: var(--smartie-fg);
 }
 
 .smartie-card-title {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
-    color: #f8fafc;
+    color: var(--smartie-fg);
 }
 
 .smartie-caption {
@@ -199,7 +199,7 @@
     margin: 0;
     font-size: 28px;
     font-weight: 700;
-    color: #f8fafc;
+    color: var(--smartie-fg);
     line-height: 1.1;
 }
 
@@ -245,7 +245,7 @@
 .smartie-btn-secondary,
 .btn-knowledge:not(.btn-knowledge-primary):not(.btn-knowledge-ghost):not(.btn-knowledge-danger) {
     background: var(--smartie-secondary-bg);
-    color: #e6e8ee;
+    color: var(--smartie-fg);
     border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -307,7 +307,7 @@
     background: var(--smartie-input-bg);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
-    color: #f8fafc;
+    color: var(--smartie-fg);
     font: inherit;
     font-size: 14px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -352,7 +352,7 @@ textarea.smartie-input,
     background: var(--smartie-control-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238B93A7' d='M2 4l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 12px center;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
-    color: #f8fafc;
+    color: var(--smartie-fg);
     font: inherit;
     font-size: 14px;
     cursor: pointer;
@@ -368,8 +368,8 @@ textarea.smartie-input,
 
 .smartie-select option,
 .tasks-select option {
-    background: #111827;
-    color: #f8fafc;
+    background: var(--smartie-bg-elevated);
+    color: var(--smartie-fg);
 }
 
 /* ── Checkbox ── */
@@ -482,7 +482,7 @@ textarea.smartie-input,
     margin: 0 0 var(--smartie-space-1);
     font-size: 20px;
     font-weight: 600;
-    color: #f8fafc;
+    color: var(--smartie-fg);
 }
 
 .smartie-empty-subtitle {
@@ -509,7 +509,7 @@ textarea.smartie-input,
     background: var(--smartie-card-bg);
     border: 1px solid var(--smartie-card-border);
     border-radius: 14px;
-    color: #f8fafc;
+    color: var(--smartie-fg);
     font: inherit;
     font-size: 16px;
     font-weight: 600;
@@ -670,7 +670,7 @@ textarea.smartie-input,
 .files-folder-name {
     display: block;
     font-weight: 600;
-    color: #f8fafc;
+    color: var(--smartie-fg);
 }
 
 .files-folder-path {
@@ -879,7 +879,7 @@ textarea.smartie-input,
     background: var(--smartie-control-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238B93A7' d='M2 4l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 12px center;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
-    color: #f8fafc;
+    color: var(--smartie-fg);
     font: inherit;
     font-size: 14px;
     cursor: pointer;
@@ -909,7 +909,7 @@ textarea.smartie-input,
     margin: 0;
     font-size: 28px;
     font-weight: 700;
-    color: #f8fafc;
+    color: var(--smartie-fg);
 }
 
 .memory-importance {
@@ -964,11 +964,11 @@ textarea.smartie-input,
     max-width: calc(100vw - 32px);
     max-height: calc(100vh - 32px);
     overflow: auto;
-    background: rgba(17, 24, 39, 0.95);
+    background: var(--smartie-bg-elevated);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 18px;
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-    color: #f8fafc;
+    color: var(--smartie-fg);
 }
 
 .confirm-dialog {
@@ -1086,4 +1086,39 @@ textarea.smartie-input,
     border-radius: var(--smartie-radius-pill);
     font-size: 11px;
     font-weight: 700;
+}
+
+/* Release accessibility and narrow-window polish, using the existing theme palette. */
+:where(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid var(--smartie-accent);
+    outline-offset: 3px;
+}
+:where(.settings-page, .tasks-page, .files-page, .memory-page, .plugins-page, .automations-page) {
+    box-sizing: border-box;
+}
+:where(.smartie-dialog, .onboarding-card) {
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+}
+:where(.files-location, .plugins-path, .knowledge-settings-list dd) {
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+.provider-setup-actions { margin: 16px 0 24px; }
+.provider-setup-actions .smartie-btn { margin: 4px 8px 4px 0; text-decoration: none; }
+:where(.settings-page, .memory-page, .tasks-page, .automations-page) input[type="checkbox"] {
+    accent-color: var(--smartie-accent);
+    width: 16px;
+    height: 16px;
+}
+@media (max-width: 700px) {
+    :where(.settings-page, .tasks-page, .files-page, .memory-page, .plugins-page, .automations-page) {
+        padding: 16px;
+    }
+    .provider-grid, .appearance-grid, .files-columns { grid-template-columns: minmax(0, 1fr); }
+    .files-row, .provider-card-head { flex-wrap: wrap; }
+    .files-row-actions, .settings-section-nav { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

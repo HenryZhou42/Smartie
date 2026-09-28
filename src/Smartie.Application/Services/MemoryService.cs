@@ -239,11 +239,11 @@ public sealed class MemoryService : IMemoryService
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
             {
-                _logger.LogDebug(ex, "Skipped storing extracted memory for user {UserId}.", userId);
+                _logger.LogDebug("Skipped storing extracted memory for user {UserId}.", userId);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                _logger.LogWarning(ex, "Failed to store extracted memory for user {UserId}.", userId);
+                _logger.LogWarning("Failed to store extracted memory for user {UserId}.", userId);
             }
         }
     }
@@ -317,9 +317,9 @@ public sealed class MemoryService : IMemoryService
             memory.EmbeddingVector = EmbeddingVectorConverter.ToBytes(vector);
             memory.EmbeddingModel = provider.ModelName;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogWarning(ex, "Could not generate embedding for memory {MemoryId}.", memory.Id);
+            _logger.LogWarning("Could not generate embedding for memory {MemoryId}.", memory.Id);
             memory.EmbeddingVector = null;
             memory.EmbeddingModel = null;
         }

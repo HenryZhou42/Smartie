@@ -85,8 +85,8 @@
             <Link>Docs\LICENSE</Link>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         </Content>
-        <Content Include="..\..\docs\Packaging.md" Condition="Exists('..\..\docs\Packaging.md')">
-            <Link>Docs\Packaging.md</Link>
+        <Content Include="..\..\docs\*.md">
+            <Link>Docs\%(Filename)%(Extension)</Link>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         </Content>
     </ItemGroup>

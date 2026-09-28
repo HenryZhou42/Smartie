@@ -146,9 +146,9 @@ public sealed class ConversationService : IConversationService
                 .ExtractAndStoreFromUserMessageAsync(conversation.UserId, trimmed, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogWarning(ex, "Memory extraction failed for conversation {ConversationId}.", conversationId);
+            _logger.LogWarning("Memory extraction failed for conversation {ConversationId}.", conversationId);
         }
 
         var refreshed = await _repository.FindAsync(conversationId, cancellationToken).ConfigureAwait(false);
@@ -341,15 +341,15 @@ public sealed class ConversationService : IConversationService
                 {
                     break;
                 }
-                catch (AiRateLimitedException ex)
+                catch (AiRateLimitedException)
                 {
-                    _logger.LogWarning(ex, "AI provider rate-limited for conversation {ConversationId}.", conversationId);
+                    _logger.LogWarning("AI provider rate-limited for conversation {ConversationId}.", conversationId);
                     errorMessage = "\u26a0\ufe0f The AI provider is rate-limited or out of quota right now. Please wait a moment and try again.";
                     chunk = string.Empty;
                 }
                 catch (AiServiceException ex)
                 {
-                    _logger.LogError(ex, "AI provider error for conversation {ConversationId}.", conversationId);
+                    _logger.LogError("AI provider error for conversation {ConversationId}.", conversationId);
                     errorMessage = "\u26a0\ufe0f " + ex.Message;
                     chunk = string.Empty;
                 }

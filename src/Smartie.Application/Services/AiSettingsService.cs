@@ -36,7 +36,7 @@ public sealed class AiSettingsService : IAiSettingsService
             .Select(info =>
             {
                 credentials.TryGetValue(info.Key, out var cred);
-                var hasKey = !string.IsNullOrEmpty(cred?.ApiKeyProtected);
+                var hasKey = !string.IsNullOrEmpty(cred?.ApiKeyProtected) && !string.IsNullOrWhiteSpace(_protector.Unprotect(cred.ApiKeyProtected));
                 var model = cred?.ChatModel ?? info.DefaultChatModel;
                 var endpoint = info.FixedEndpoint ?? cred?.Endpoint ?? info.DefaultEndpoint;
                 return new AiProviderState(info, hasKey, model, endpoint);

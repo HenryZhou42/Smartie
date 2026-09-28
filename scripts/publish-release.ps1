@@ -12,7 +12,8 @@ $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
     Write-Host "=== Smartie Community Edition $Version Release ===" -ForegroundColor Cyan
-    dotnet test tests/Smartie.Tests/Smartie.Tests.csproj -c $Configuration --no-restore:$false
+    dotnet test tests/Smartie.Tests/Smartie.Tests.csproj -c $Configuration
+    if ($LASTEXITCODE -ne 0) { throw "Release tests failed; artifacts were not built." }
 
     if (-not $SkipPortable) {
         & "$PSScriptRoot/publish-portable.ps1" -Configuration $Configuration -Version $Version

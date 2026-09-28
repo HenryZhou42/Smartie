@@ -58,6 +58,35 @@ public static class SettingsEndpoints
             return Results.NoContent();
         });
 
+        // Uses only a synthetic prompt; never stores a conversation or sends library/memory data.
+        group.MapPost("/test", async (IChatAiService chat, CancellationToken ct) =>
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            try
+            {
+                await foreach (var delta in chat.StreamReplyAsync(
+                    [new Smartie.Domain.Entities.Message
+                    {
+                        Role = Smartie.Domain.Entities.MessageRole.User,
+                        Content = "Reply with OK only."
+                    }], timeout.Token))
+                {
+                    if (!string.IsNullOrWhiteSpace(delta))
+                        return Results.Ok("Connection successful. You can start chatting.");
+                }
+                return Results.BadRequest("The provider returned no text. Check the model and try again.");
+            }
+            catch (OperationCanceledException)
+            {
+                return Results.BadRequest("Connection timed out or was cancelled. Check your network and local model server.");
+            }
+            catch (Exception)
+            {
+                // Provider exceptions can contain request URLs, credentials, or response bodies.
+                return Results.BadRequest("Connection failed. Check your saved API key, model, endpoint, network, and provider quota.");
+            }
+        });
         return app;
     }
 

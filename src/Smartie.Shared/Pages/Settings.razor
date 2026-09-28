@@ -6,20 +6,20 @@
 
 <div class="settings-page">
     <nav class="settings-section-nav" aria-label="Settings sections">
-        <a href="#ai">AI</a>
-        <a href="#appearance">Appearance</a>
-        <a href="#tasks">Tasks</a>
-        <a href="#files">Files</a>
-        <a href="#memory">Memory</a>
-        <a href="#knowledge">Knowledge Base</a>
-        <a href="#developer">Developer</a>
+        <a href="/settings#ai">AI</a>
+        <a href="/settings#appearance">Appearance</a>
+        <a href="/settings#tasks">Tasks</a>
+        <a href="/settings#files">Files</a>
+        <a href="/settings#memory">Memory</a>
+        <a href="/settings#knowledge">Knowledge Base</a>
+        <a href="/settings#developer">Developer</a>
         <a href="/about">About</a>
     </nav>
 
     <header class="settings-header" id="ai">
         <p class="edition-badge">Community Edition</p>
         <h1>AI Providers</h1>
-        <p>Bring your own AI. Pick a provider, enter your own API key, and chat — all data stays on this device. Keys are encrypted locally and sent only to the provider you choose.</p>
+        <p>Bring your own AI. Pick a provider, enter your own API key, and chat. Your library is stored locally. Chat prompts, attached text, and relevant memory/RAG context go to your selected provider; embeddings use Google Gemini. Keys are protected with Windows DPAPI.</p>
     </header>
 
     @if (_settings is null)
@@ -30,13 +30,19 @@
     {
         @if (_error is not null)
         {
-            <div class="settings-error">@_error</div>
+            <div class="settings-error" role="alert">@_error</div>
         }
         @if (_status is not null)
         {
-            <div class="settings-status">@_status</div>
+            <div class="settings-status" role="status">@_status</div>
         }
 
+        <div class="provider-setup-actions">
+            <p>1. Save your key and model. 2. Choose “Use this”. 3. Test the active provider.</p>
+            <p class="smartie-caption">The test sends a short synthetic prompt and may incur a small provider charge.</p>
+            <button type="button" class="smartie-btn smartie-btn-secondary" disabled="@(_testing || _saving)" @onclick="TestConnectionAsync">@(_testing ? "Testing…" : "Test active provider")</button>
+            <a class="smartie-btn smartie-btn-primary" href="/chat">Start chatting</a>
+        </div>
         <div class="provider-grid">
             @foreach (var p in _settings.Providers.Where(p => p.Available))
             {
@@ -108,13 +114,13 @@
                     <div><dt>Show completed</dt><dd>@(_taskSettings.ShowCompleted ? "Yes" : "No")</dd></div>
                 </dl>
                 <div class="memory-settings-actions">
-                    <select class="settings-inline-select" @bind="_taskSortDraft" @bind:after="SaveTaskSettingsAsync">
+                    <select class="settings-inline-select smartie-select" @bind="_taskSortDraft" @bind:after="SaveTaskSettingsAsync">
                         @foreach (var option in TaskSortOptions)
                         {
                             <option value="@option">@FormatTaskSort(option)</option>
                         }
                     </select>
-                    <select class="settings-inline-select" @bind="_taskPriorityDraft" @bind:after="SaveTaskSettingsAsync">
+                    <select class="settings-inline-select smartie-select" @bind="_taskPriorityDraft" @bind:after="SaveTaskSettingsAsync">
                         @foreach (var option in TaskPriorityOptions)
                         {
                             <option value="@option">@option</option>
@@ -148,7 +154,7 @@
                     <div><dt>Show hidden files</dt><dd>@(_fileSettings.ShowHiddenFiles ? "Yes" : "No")</dd></div>
                 </dl>
                 <div class="memory-settings-actions">
-                    <select class="settings-inline-select" @bind="_fileMaxRecentDraft" @bind:after="SaveFileSettingsAsync">
+                    <select class="settings-inline-select smartie-select" @bind="_fileMaxRecentDraft" @bind:after="SaveFileSettingsAsync">
                         @foreach (var option in FileMaxRecentOptions)
                         {
                             <option value="@option">@option recent files</option>
@@ -438,6 +444,7 @@
     private string? _error;
     private string? _status;
     private bool _saving;
+    private bool _testing;
     private bool _savingMemory;
 
     private static readonly string[] TaskSortOptions = ["DueDate", "Priority", "UpdatedAt", "CreatedAt", "Title"];
@@ -786,6 +793,15 @@
         }
     }
 
+    private async Task TestConnectionAsync()
+    {
+        _testing = true;
+        _error = null;
+        _status = null;
+        try { _status = await Api.TestAiConnectionAsync(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _testing = false; }
+    }
     private async Task SaveAsync(string provider)
     {
         _saving = true;

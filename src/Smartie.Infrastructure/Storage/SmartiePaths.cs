@@ -3,7 +3,22 @@ namespace Smartie.Infrastructure.Storage;
 /// <summary>Local filesystem paths for Smartie Community Edition data under %LOCALAPPDATA%/Smartie.</summary>
 public static class SmartiePaths
 {
-    public static string AppDataRoot =>
+    // Explicit override supports isolated smoke tests without touching the user's library.
+    public static string AppDataRoot => ResolveAppDataRoot();
+
+    private static string ResolveAppDataRoot()
+    {
+        var overridden = Environment.GetEnvironmentVariable("SMARTIE_DATA_ROOT");
+        if (!string.IsNullOrWhiteSpace(overridden))
+        {
+            if (!Path.IsPathFullyQualified(overridden))
+                throw new InvalidOperationException("SMARTIE_DATA_ROOT must be an absolute path.");
+            return Path.GetFullPath(overridden);
+        }
+        return DefaultAppDataRoot;
+    }
+
+    private static string DefaultAppDataRoot =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Smartie");

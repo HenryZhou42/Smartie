@@ -24,12 +24,12 @@
 
     @if (!string.IsNullOrEmpty(_error))
     {
-        <div class="files-error">@_error</div>
+        <div class="files-error" role="alert">@_error</div>
     }
 
     @if (!string.IsNullOrEmpty(_status))
     {
-        <div class="files-status">@_status</div>
+        <div class="files-status" role="status" aria-live="polite">@_status</div>
     }
 
     <section class="dashboard-card files-search-card">

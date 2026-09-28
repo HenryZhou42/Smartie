@@ -9,6 +9,39 @@ public sealed class ApiEndpointTests : IClassFixture<SmartieApiFactory>
     private readonly SmartieApiFactory _factory;
 
     public ApiEndpointTests(SmartieApiFactory factory) => _factory = factory;
+    [Fact]
+    public async Task ConnectionTest_DoesNotCreateConversation()
+    {
+        var client = _factory.CreateClient();
+        var before = await client.GetFromJsonAsync<List<ConversationDto>>("/api/conversations");
+        var result = await client.PostAsync("/api/settings/ai/test", null);
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+        var after = await client.GetFromJsonAsync<List<ConversationDto>>("/api/conversations");
+        Assert.Equal(before!.Count, after!.Count);
+    }
+
+    [Theory]
+    [InlineData("https://malicious.example")]
+    [InlineData("null")]
+    [InlineData("http://localhost:9999")]
+    public async Task UntrustedBrowserOrigin_CannotReadOrWrite(string origin)
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("Origin", origin);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/conversations")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync("/api/settings/ai/test", null)).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("https://0.0.0.1")]
+    [InlineData("http://localhost:5072")]
+    public async Task SupportedBrowserOrigin_IsAllowed(string origin)
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("Origin", origin);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
+    }
+
 
     [Fact]
     public async Task Health_ReturnsOk()

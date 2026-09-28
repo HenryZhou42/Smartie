@@ -18,3 +18,8 @@
 - Document collections
 - Mobile clients
 - Plugin marketplace (not planned for Community Edition)
+
+## Community v0.9 Beta to RC
+Prioritize clean-machine validation, native accessibility/drag-drop checks,
+live-provider compatibility, signed MSIX distribution and dependency maintenance.
+No new major product area is required for this release.

@@ -15,12 +15,12 @@
 
     @if (!string.IsNullOrEmpty(_error))
     {
-        <div class="tasks-error">@_error</div>
+        <div class="tasks-error" role="alert">@_error</div>
     }
 
     @if (!string.IsNullOrEmpty(_status))
     {
-        <div class="tasks-status">@_status</div>
+        <div class="tasks-status" role="status" aria-live="polite">@_status</div>
     }
 
     <section class="dashboard-card tasks-quick-add-card">
@@ -71,7 +71,7 @@
 
     @if (_loading)
     {
-        <div class="tasks-loading">Loading tasks…</div>
+        <div class="tasks-loading" role="status" aria-live="polite">Loading tasks…</div>
     }
     else if (_tasks.Count == 0)
     {

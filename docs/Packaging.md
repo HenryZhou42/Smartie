@@ -1,322 +1,74 @@
-# Packaging Smartie Community Edition
+# Packaging Smartie 0.9.0 Beta
 
-> **Quick start:** [Installation-Package-Generation.md](Installation-Package-Generation.md) — step-by-step commands to generate portable ZIP and MSIX packages.
+Run from the repository root on Windows with the .NET 9 SDK, MAUI workload,
+Windows SDK/MSIX tooling and NuGet connectivity.
 
-Smartie Community Edition ships as a **Windows desktop** app (.NET MAUI Blazor Hybrid). Two primary distribution formats are supported:
+## Portable (primary)
 
-| Format | Use case |
-|--------|----------|
-| **Portable ZIP** | GitHub releases, quick sideload, no installer |
-| **MSIX** | Start menu + taskbar integration, clean uninstall |
+    powershell -ExecutionPolicy Bypass -File scripts/publish-portable.ps1
 
-Version **0.9.0 RC** · Publisher **Henry Zhou** · Package identity **Smartie.Community**
+The script builds the example plugin and publishes Windows x64 with:
 
----
+    dotnet publish src/Smartie.Maui/Smartie.Maui.csproj -c Release -f net9.0-windows10.0.19041.0 -r win-x64 --self-contained true -p:PublishProfile=win-x64-portable -p:WindowsAppSDKSelfContained=true -p:SmartieVersion=0.9.0 -p:PublishDir=<fresh-absolute-directory>/
 
-## Prerequisites
+Outputs:
+- dist/Smartie-v0.9.0-beta-win-x64-portable.zip
+- The adjacent .sha256 checksum
+- dist/Smartie-v0.9.0-beta-win-x64-portable-<run-id>/publish/Smartie.exe
 
-- [.NET 9 SDK](https://dotnet.microsoft.com/download)
-- MAUI workload: `dotnet workload install maui`
-- Windows 10 1809+ or Windows 11 (x64)
-- WebView2 (included on Windows 11)
+Each run uses a new staging directory; existing artifacts are preserved, and the
+stable ZIP/checksum names are replaced after a successful publish and content check.
+The .NET and Windows App SDK runtimes are bundled. WebView2 remains a prerequisite.
+Extract the entire ZIP before launching. “Portable” means no installer; data is
+stored in %LOCALAPPDATA%/Smartie, not beside the executable.
 
-For **signed MSIX** (recommended for broad distribution):
+## MSIX (secondary)
 
-- Code signing certificate (`.pfx`) trusted on target machines
+    powershell -ExecutionPolicy Bypass -File scripts/publish-msix.ps1
 
----
+Outputs are printed by the script:
+- dist/Smartie-v0.9.0-beta-msix-<run-id>/Smartie_0.9.0_x64.msix
+- An AppPackages-style subfolder with the original generated package.
 
-## Release configuration
+The default package is unsigned, for build validation. Before distributing an
+installable MSIX, sign it with a trusted certificate matching CN=Henry Zhou.
+Enabling developer mode does not replace proper package signing.
+The existing MsixPackage launch profile is retained.
 
-Release builds use `Directory.Build.props` for shared metadata:
+Both scripts accept -Version 0.9.0 and -Runtime win-x64. Other architectures are
+intentionally rejected. Display/package versions remain numeric; Beta is shown in
+About and assembly informational metadata.
 
-- Configuration: **Release**
-- Target: **Windows** (`net9.0-windows10.0.19041.0`)
-- Architecture: **x64** (`win-x64`)
-- Output executable: **Smartie.exe** (assembly name `Smartie`)
+## Release safety
 
-Product metadata lives in `src/Smartie.Contracts/ProductMetadata.cs` (keep in sync with `Directory.Build.props`).
+Test-ReleaseContent.ps1 rejects database files/sidecars, local config, dotenv files,
+private keys/certificates, logs and user upload/cache directories. It runs before
+portable ZIP creation. It is not a substitute for reviewing source/configuration
+for embedded secrets. Example plugin binaries and curated TestData are intentional.
 
----
+Do not copy %LOCALAPPDATA%/Smartie into a release. No certificate or private API key
+is needed to build the portable distribution. Cloud-provider validation uses your
+own credentials; credentials are never supplied with the app.
 
-## Build everything (recommended)
+## Verification
 
-From the repository root:
+    dotnet test tests/Smartie.Tests/Smartie.Tests.csproj -c Release
+    dotnet build src/Smartie.Web/Smartie.Web.csproj -c Release
 
-```powershell
-.\scripts\publish-release.ps1 -Version 0.9.0
-```
+For an isolated launch, set SMARTIE_DATA_ROOT to an absolute disposable directory
+in the process environment before running Smartie.exe. Leave it unset for ordinary
+use. Never point it at a real user's library during destructive test scenarios.
 
-This runs tests, then produces portable and MSIX artifacts under `dist/`.
-
-Options:
-
-```powershell
-.\scripts\publish-release.ps1 -Version 0.9.0 -SkipMsix      # portable only
-.\scripts\publish-release.ps1 -Version 0.9.0 -SkipPortable  # MSIX only
-```
-
----
-
-## Portable ZIP release
-
-```powershell
-.\scripts\publish-portable.ps1 -Version 0.9.0
-```
-
-**Visual Studio:** Right-click **Smartie.Maui** → **Publish** → profile **`win-x64-portable`** → target `dist\Smartie-0.9.0-portable\publish\` (Release, x64). Zip the **contents** of `publish\` as `Smartie-0.9.0-portable.zip`. See [Installation-Package-Generation.md](Installation-Package-Generation.md).
-
-**Output:**
-
-```
-dist/
-  Smartie-0.9.0-portable/
-    publish/
-      Smartie.exe
-      Smartie.dll
-      Resources/
-      SampleData/
-      Plugins/ExamplePlugin/
-      Docs/
-      README.txt
-  Smartie-0.9.0-portable.zip
-```
-
-Or use the publish profile:
-
-```powershell
-dotnet publish src/Smartie.Maui/Smartie.Maui.csproj -p:PublishProfile=win-x64-portable
-```
-
-### Install (portable)
-
-1. Extract `Smartie-0.9.0-portable.zip` to any folder (e.g. `C:\Apps\Smartie`)
-2. Run `Smartie.exe`
-3. Complete the welcome wizard (optional sample import)
-
-### Uninstall (portable)
-
-1. Delete the extracted folder
-2. Optionally delete `%LOCALAPPDATA%\Smartie` to remove all local data
-
----
-
-## MSIX package
-
-### Known issue: missing `MsixPackage` launch profile
-
-Visual Studio / `dotnet publish` for single-project MAIX requires a **`MsixPackage`** entry in `src/Smartie.Maui/Properties/launchSettings.json`. Without it, publish fails with:
-
-```
-launchSettings.json does not contain a profile with commandName 'MsixPackage'.
-To debug a packaged single-project MSIX solution, a profile with command name MsixPackage in launchSettings.json is required.
-```
-
-The repo includes this profile. If you see the error, ensure `launchSettings.json` contains:
-
-```json
-"MsixPackage": {
-  "commandName": "MsixPackage",
-  "nativeDebugging": false
-}
-```
-
-### Clean build before MSIX publish
-
-Stale `bin/Release` or `obj/Release` folders can cause static-web-assets or AppPackages errors. From the repository root:
-
-```powershell
-Remove-Item -Recurse -Force src/Smartie.Maui/bin/Release, src/Smartie.Maui/obj/Release -ErrorAction SilentlyContinue
-dotnet clean src/Smartie.Maui/Smartie.Maui.csproj -c Release
-dotnet restore
-```
-
-### MSIX publish (recommended)
-
-Script:
-
-```powershell
-.\scripts\publish-msix.ps1 -Version 0.9.0
-```
-
-Or publish profile:
-
-```powershell
-dotnet publish src/Smartie.Maui/Smartie.Maui.csproj -c Release -f net9.0-windows10.0.19041.0 -p:PublishProfile=win-x64-msix
-```
-
-Or explicit RID (equivalent):
-
-```powershell
-dotnet publish src/Smartie.Maui/Smartie.Maui.csproj -c Release -f net9.0-windows10.0.19041.0 -r win-x64 -p:WindowsPackageType=MSIX -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false
-```
-
-**Output locations:**
-
-| Artifact | Path |
-|----------|------|
-| MSIX (script copy) | `dist/Smartie-0.9.0-msix/Smartie_0.9.0_x64.msix` |
-| MSIX (build tree) | `src/Smartie.Maui/bin/Release/net9.0-windows10.0.19041.0/win-x64/AppPackages/` |
-| Publish folder | `dist/Smartie-0.9.0-msix/` |
-
-Signed build:
-
-```powershell
-.\scripts\publish-msix.ps1 -Version 0.9.0 -Sign -CertificatePath "cert.pfx" -CertificatePassword "password"
-```
-
-Manifest: `src/Smartie.Maui/Platforms/Windows/Package.appxmanifest`
-
-| Field | Value |
-|-------|-------|
-| Display name | Smartie |
-| Package identity | Smartie.Community |
-| Publisher | CN=Henry Zhou |
-| Version | 0.9.0.0 |
-| Processor | x64 |
-| Capability | `runFullTrust` (local desktop app) |
-
-Local test builds use **unsigned** MSIX (`AppxPackageSigningEnabled=false`). Enable sideloading or sign for distribution.
-
-### Portable publish (fallback)
-
-If MSIX tooling is unavailable or publish still fails, ship an unpackaged self-contained folder:
-
-```powershell
-dotnet publish src/Smartie.Maui/Smartie.Maui.csproj -c Release -f net9.0-windows10.0.19041.0 -r win-x64 --self-contained true -p:WindowsPackageType=None -o artifacts/Smartie-0.9.0-portable
-```
-
-Or use the publish profile / script:
-
-```powershell
-dotnet publish src/Smartie.Maui/Smartie.Maui.csproj -p:PublishProfile=win-x64-portable
-.\scripts\publish-portable.ps1 -Version 0.9.0
-```
-
-**Output:** `dist/Smartie-0.9.0-portable/publish/Smartie.exe` (and `Smartie-0.9.0-portable.zip` when using the script).
-
-### Install (MSIX)
-
-Unsigned (developer sideloading enabled):
-
-```powershell
-Add-AppxPackage -Path "dist\Smartie-0.9.0-msix\*.msix"
-```
-
-### Uninstall (MSIX)
-
-Settings → Apps → Smartie → Uninstall, or:
-
-```powershell
-Get-AppxPackage *Smartie* | Remove-AppxPackage
-```
-
----
-
-## What is packaged
-
-Included in release builds:
-
-- `Smartie.exe` + .NET runtime (self-contained)
-- Blazor UI + embedded local API
-- `SampleData/` (onboarding sample markdown files)
-- `Plugins/ExamplePlugin/` (manifest + example DLL)
-- `Docs/README.md`, `Docs/LICENSE`
-
-**Never packaged** (enforced by script + csproj):
-
-- `apikeys.json`, `.env`, `.env.local`
-- `appsettings.Development.json`, `secrets.json`
-- User SQLite database, Knowledge Base uploads, chat attachments, logs, cache
-
----
-
-## Local application data
-
-On first launch Smartie creates:
-
-```
-%LOCALAPPDATA%\Smartie\
-├── smartie.db          # SQLite (conversations, settings, encrypted keys)
-├── KnowledgeBase\      # uploaded documents
-├── ChatAttachments\
-├── Memory\
-├── Tasks\
-├── Plugins\            # user-installed plugins
-├── Logs\
-├── Cache\
-└── AutomationExports\
-```
-
-Legacy `%LOCALAPPDATA%\Smartie\Documents` is migrated to `KnowledgeBase` automatically.
-
----
-
-## First launch
-
-1. Folders and database are created automatically
-2. Welcome wizard runs (if not completed)
-3. Optional sample document import from `SampleData/`
-4. Example plugin seeded to `%LOCALAPPDATA%\Smartie\Plugins\ExamplePlugin\`
-
----
-
-## Icons
-
-Source SVG icons: `src/Smartie.Maui/Resources/AppIcon/`
-
-MAUI generates PNG tiles and Windows icon assets at build time. After changing SVGs:
-
-```powershell
-dotnet build src/Smartie.Maui/Smartie.Maui.csproj -c Release
-```
-
-Verify: taskbar icon, Start menu tile (MSIX), window title **Smartie Community Edition**.
-
----
-
-## Installer verification checklist
-
-After building a release candidate:
-
-- [ ] `Smartie.exe` launches without errors
-- [ ] `%LOCALAPPDATA%\Smartie\smartie.db` created
-- [ ] Settings persist after restart
-- [ ] Theme / appearance persists
-- [ ] Knowledge Base upload works
-- [ ] Chat streams responses (with configured provider)
-- [ ] Memory, Tasks, Files pages load
-- [ ] `%LOCALAPPDATA%\Smartie\Plugins` exists
-- [ ] No `apikeys.json` / `.env` in publish folder
-- [ ] About page shows version **0.9.0 (RC)**, build date, edition
-
----
+Test on a clean Windows x64 VM with WebView2 before promoting Beta to RC. Confirm
+first launch, configure/test provider, streaming/stop/edit, imports, themes and
+restart. The development machine already has SDK/runtime dependencies, so its
+launch alone cannot prove clean-machine readiness. See Release-Verification.md.
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| `MsixPackage` launch profile missing | Add `MsixPackage` profile to `Properties/launchSettings.json` (see MSIX section above) |
-| MSIX publish fails after partial build | Delete `bin/Release` and `obj/Release`, then `dotnet clean` + `dotnet restore` |
-| WebView2 missing | Install [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) |
-| MSIX blocked | Enable sideloading or sign the package |
-| Sample import empty | Ensure `SampleData/` exists next to `Smartie.exe` |
-| Plugin example missing | Rebuild with Release; check `Plugins/ExamplePlugin/manifest.json` |
-| Port in use | MAUI picks next free port automatically; check logs in `%LOCALAPPDATA%\Smartie\Logs` |
-
----
-
-## GitHub release
-
-1. Run `.\scripts\publish-portable.ps1 -Version 0.9.0` (or `publish-release.ps1 -SkipMsix`)
-2. Attach `dist/Smartie-0.9.0-portable.zip` to GitHub Releases
-3. Use [`.github/release-notes-template.md`](../.github/release-notes-template.md) for release notes
-4. Add screenshots from `screenshots/` (see `screenshots/README.md`)
-
-Do **not** attach unsigned MSIX for public users — use portable ZIP unless the package is signed.
-
----
-
-## Future
-
-Traditional WiX/Setup installer may be added later. Community Edition remains **local-only** with no cloud dependencies.
+- NETSDK1112: restore/publish with -r win-x64 and self-contained enabled; a prior
+  framework-only restore is insufficient.
+- Missing mspdbcmf.exe: symbol-package warning; the application MSIX can still build.
+- Missing WebView2: install the official Microsoft WebView2 runtime.
+- No trusted signature: distribute the portable beta or sign the MSIX.
+- Preserve failed output for diagnosis; do not recursively delete user data.

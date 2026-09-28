@@ -22,7 +22,7 @@
                     {
                         <button type="button"
                                 class="appearance-swatch @(_settings.Theme == theme ? "active" : string.Empty)"
-                                title="@theme"
+                                title="@theme" aria-pressed="@(_settings.Theme == theme)"
                                 @onclick="() => UpdateAsync(new UpdateAppearanceSettingsRequest(theme, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null))">
                             <span class="appearance-swatch-fill theme-@theme.ToLowerInvariant()"></span>
                             <span class="appearance-swatch-label">@FormatThemeLabel(theme)</span>
@@ -35,13 +35,13 @@
                     {
                         <button type="button"
                                 class="appearance-accent-pill accent-@accent.ToLowerInvariant() @(_settings.AccentColor == accent ? "active" : string.Empty)"
-                                title="@accent"
+                                title="@accent" aria-label="@accent" aria-pressed="@(_settings.AccentColor == accent)"
                                 @onclick="() => SelectAccentAsync(accent)">
                         </button>
                     }
                     <button type="button"
                             class="appearance-accent-pill accent-custom @(_settings.AccentColor.Equals("Custom", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)"
-                            title="Custom"
+                            title="Custom" aria-label="Custom accent"
                             @onclick='() => SelectAccentAsync("Custom")'>
                     </button>
                 </div>
